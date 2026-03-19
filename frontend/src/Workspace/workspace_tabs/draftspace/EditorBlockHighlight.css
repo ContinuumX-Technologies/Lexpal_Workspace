@@ -1,0 +1,12 @@
+/* Highlighting specific block tied to tree */
+.page :global(.tiptap [data-block-id]) {
+    transition: background-color 0.2s, border-left 0.2s;
+    border-left: 3px solid transparent;
+}
+
+.page :global(.tiptap .highlight-block) {
+    background-color: rgba(99, 102, 241, 0.08);
+    /* Indigo tinted */
+    border-left: 3px solid #4f46e5;
+    border-radius: 0 4px 4px 0;
+}

@@ -1,0 +1,130 @@
+:root {
+  --page-width: 794px;
+  --page-height: 1123px;
+}
+
+/* Outer shell — fills whatever the parent gives, toolbar on top, desk below */
+.editorRoot {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* grey desk — fills remaining height after MenuBar */
+.desk {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  background: #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px;
+  gap: 32px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+/* A4 page visuals  */
+.pageWrapper {
+  position: relative;
+  width: var(--page-width, 794px);
+  min-width: var(--page-width, 794px);
+  /* min-height: var(--page-height, 1123px); // this line was causing problem and not letting the white page expand vertically with the editor content */ 
+  height: auto;
+  display: flex;
+
+  background: white;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.editorSurface {
+  width: 100%;
+  min-height: calc(var(--page-height, 1123px) - var(--margin-top, 96px) - var(--margin-bottom, 96px));
+  /* ← no flex, no height: auto, just block with min-height */
+  box-sizing: border-box;
+  padding-top: var(--margin-top, 96px);
+  padding-bottom: var(--margin-bottom, 96px);
+  padding-left: var(--margin-left, 96px);
+  padding-right: var(--margin-right, 96px);
+}
+
+.editorSurface :global(.tiptap) {
+  outline: none;
+  width: 100%;
+  min-height: calc(var(--page-height, 1123px) - var(--margin-top, 96px) - var(--margin-bottom, 96px));
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  font-family: 'Times New Roman', Times, serif;
+  overflow-wrap: break-word;
+}
+.editorSurface :global(.tiptap p) {
+  margin: 0 0 0.5em 0;
+}
+
+.editorSurface :global(.tiptap h1),
+.editorSurface :global(.tiptap h2),
+.editorSurface :global(.tiptap h3),
+.editorSurface :global(.tiptap h4),
+.editorSurface :global(.tiptap h5),
+.editorSurface :global(.tiptap h6) {
+  margin: 0.8em 0 0.4em 0;
+  line-height: 1.3;
+}
+
+/* Page break node */
+.editorSurface :global(.page-break-node) {
+  display: block;
+  width: 100%;
+  height: 0;
+  border: none;
+  border-top: 2px dashed #bbb;
+  margin: 24px 0;
+  position: relative;
+  page-break-after: always;
+  break-after: page;
+  contenteditable: false;
+  pointer-events: none;
+  user-select: none;
+}
+
+.editorSurface :global(.page-break-node)::after {
+  content: '— Page Break —';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 0 10px;
+  font-size: 11px;
+  color: #aaa;
+  font-family: sans-serif;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+/* Table styles */
+.editorSurface :global(.tiptap table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.editorSurface :global(.tiptap td),
+.editorSurface :global(.tiptap th) {
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  min-width: 40px;
+}
+
+.editorSurface :global(.tiptap th) {
+  background: #f5f5f5;
+  font-weight: 600;
+}

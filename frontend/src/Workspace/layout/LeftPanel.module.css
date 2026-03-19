@@ -1,0 +1,36 @@
+.leftPanel {
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-right: 1px solid #e5e7eb;
+  overflow: hidden;
+
+  transition: width 0.3s ease;
+  flex-shrink: 0;
+}
+
+.leftPanel.open {
+  width: 280px;
+}
+
+.content {
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+  width: 280px;
+}
+
+.content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 12px 0;
+}
+
+.content p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}

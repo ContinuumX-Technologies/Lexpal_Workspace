@@ -1,0 +1,137 @@
+.container {
+    width: 280px;
+    min-width: 240px;
+    max-width: 380px;
+    background: #f9fafb;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.header {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+    flex-shrink: 0;
+}
+
+.title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #4b5563;
+}
+
+.treeWrapper {
+    flex: 1;
+    overflow: hidden;
+    padding: 8px 0;
+}
+
+.tree {
+    /* react-arborist scroll container */
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.tree::-webkit-scrollbar {
+    width: 4px;
+}
+
+.tree::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tree::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+/* ── Node Row ────────────────────────────────────────────────────────────────── */
+.nodeRow {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding-right: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s, color 0.1s;
+    color: #374151;
+}
+
+.nodeHovered {
+    background: #f3f4f6;
+}
+
+.nodeSelected {
+    background: #eef2ff !important;
+    color: #4f46e5;
+    font-weight: 500;
+}
+
+.indent {
+    flex-shrink: 0;
+    height: 100%;
+}
+
+.expander {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    flex-shrink: 0;
+    border-radius: 4px;
+    transition: background 0.1s, color 0.1s;
+}
+
+.expander:hover {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+.expanderHidden {
+    visibility: hidden;
+}
+
+.icon {
+    width: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    flex-shrink: 0;
+    margin-right: 6px;
+}
+
+.nodeSelected .icon {
+    color: #6366f1;
+}
+
+.label {
+    flex: 1;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1;
+}
+
+.nodeSelected .label {
+    font-weight: 600;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 13px;
+  color: #6b7280;
+}
