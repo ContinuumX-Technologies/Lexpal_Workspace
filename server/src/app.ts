@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import documentRoutes from "./routes/document.routes";
+import JDSearchRouter from "./routes/JDSearch.routes";
 
 const app = express();
 
@@ -15,5 +16,7 @@ app.get("/health", (_req, res) => {
 
 // ── Routes ─────────────────────────────────────────────────────────────────
 app.use("/api/documents", documentRoutes);
+app.use("/api/judgements", JDSearchRouter);
+
 
 export default app;
