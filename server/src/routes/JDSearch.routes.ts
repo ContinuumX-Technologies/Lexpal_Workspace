@@ -6,5 +6,5 @@ const JDSearchRouter = Router();
 
 // POST /api/documents/generate
 
-JDSearchRouter.post("/search-judgements", searchJudgements);
+JDSearchRouter.post("/search", searchJudgements);
 export default JDSearchRouter;

@@ -16,11 +16,15 @@ import {
   Table as TableIcon,
   Scissors,
   Maximize2,
+  Download,
+  ChevronDown,
 } from 'lucide-react';
+import { exportToPDF, exportToDocx, exportToTxt, exportToHtml } from './utils/exportUtils';
 
 export default function MenuBar({ editor }: { editor: any }) {
   const { margins, setMargins } = useDraftspace();
   const [showMargins, setShowMargins] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   if (!editor) return null;
 
@@ -219,6 +223,50 @@ export default function MenuBar({ editor }: { editor: any }) {
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.divider} />
+
+        {/* Export Button with Dropdown */}
+        <div className={styles.exportWrapper}>
+          <button
+            className={`${styles.iconButton} ${styles.exportButton} ${showExportMenu ? styles.active : ''}`}
+            title="Download options"
+            onClick={() => setShowExportMenu(v => !v)}
+          >
+            <Download size={16} />
+            <span className={styles.exportText}>Download</span>
+            <ChevronDown size={14} className={styles.chevron} />
+          </button>
+
+          {showExportMenu && (
+            <div className={styles.exportMenu}>
+              <button 
+                className={styles.menuItem} 
+                onClick={() => { exportToPDF(); setShowExportMenu(false); }}
+              >
+                PDF Document (.pdf)
+              </button>
+              <button 
+                className={styles.menuItem} 
+                onClick={() => { exportToDocx(editor.getHTML()); setShowExportMenu(false); }}
+              >
+                Microsoft Word (.docx)
+              </button>
+              <button 
+                className={styles.menuItem} 
+                onClick={() => { exportToTxt(editor.getText()); setShowExportMenu(false); }}
+              >
+                Plain Text (.txt)
+              </button>
+              <button 
+                className={styles.menuItem} 
+                onClick={() => { exportToHtml(editor.getHTML()); setShowExportMenu(false); }}
+              >
+                Web Page (.html)
+              </button>
             </div>
           )}
         </div>

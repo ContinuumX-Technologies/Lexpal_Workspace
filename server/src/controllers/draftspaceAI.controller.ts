@@ -1,10 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { Request, Response } from "express";
-import { OpenAI } from "openai";
+import openai from "../infra/openai.client";
 import { TemplateSchema, Template, Block } from "../types/draftspace.types";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const TEMPLATE_PATH = path.join(
   process.cwd(),

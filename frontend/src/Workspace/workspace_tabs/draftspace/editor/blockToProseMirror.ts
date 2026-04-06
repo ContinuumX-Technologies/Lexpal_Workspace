@@ -1,4 +1,4 @@
-import type { BlockNode, Span } from "../store/documentTypes";
+import type { BlockNode } from "../store/documentTypes";
 
 // TipTap JSON Node format
 export type PMNode = {

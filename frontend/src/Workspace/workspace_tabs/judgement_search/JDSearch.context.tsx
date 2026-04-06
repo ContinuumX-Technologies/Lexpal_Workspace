@@ -130,7 +130,7 @@ async function fetchCaseDetail(id: string): Promise<CaseResult> {
 
 // ─── Real search API call ──────────────────────────────────────────────────────
 async function callSearchApi(body: Record<string, unknown>): Promise<SearchApiResponse> {
-  const res = await fetch("/api/judgments/judgement-search", {
+  const res = await fetch("/api/judgements/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

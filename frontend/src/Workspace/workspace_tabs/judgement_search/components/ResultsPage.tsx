@@ -50,13 +50,8 @@ function PreviewPlaceholder() {
   );
 }
 
-// ─── Outcome CSS helper ───────────────────────────────────────────────────────
-function outcomeClass(type: CaseResult["outcomeType"]) {
-  if (type === "allowed") return styles.outcomeAllowed;
-  if (type === "dismissed") return styles.outcomeDismissed;
-  if (type === "modified") return styles.outcomeModified;
-  return "";
-}
+
+
 
 // ─── Court label normaliser ───────────────────────────────────────────────────
 function courtLabel(judgementType: string): string {
