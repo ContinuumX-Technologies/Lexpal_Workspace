@@ -658,10 +658,76 @@
   color: #2563eb;
 }
 
-.iconAmber {
-  color: #d97706;
+
+/* Selection Popup */
+.selectionPopup {
+  z-index: 1000;
+  pointer-events: auto;
+  animation: fadeInDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.iconGreen {
-  color: #059669;
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -120%) scale(1);
+  }
+}
+
+.addPinButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: black;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.addPinButton:hover {
+  background-color: #333;
+  transform: translateY(-1px);
+}
+
+.addPinButton:active {
+  transform: translateY(0);
+}
+
+.iconExtraSmall {
+  font-size: 14px;
+}
+
+/* Temporary Highlight */
+.temporaryHighlight {
+  animation: pulseHighlight 2.5s ease-out;
+  position: relative;
+  border-radius: 4px;
+}
+
+@keyframes pulseHighlight {
+  0% {
+    background-color: rgba(254, 240, 138, 0);
+  }
+  15% {
+    background-color: rgba(254, 240, 138, 0.8);
+    box-shadow: 0 0 15px rgba(254, 240, 138, 0.5);
+  }
+  100% {
+    background-color: rgba(254, 240, 138, 0);
+  }
+}
+
+.chipActive {
+  border-color: #2563eb !important;
+  background-color: #eff6ff !important;
 }

@@ -1,4 +1,4 @@
-import type { BlockNode, Span, BlockNodeType } from "../store/documentTypes";
+import type { BlockNode, Span } from "../store/documentTypes";
 import type { PMNode } from "./blockToProseMirror";
 
 function pmTextToSpan(node: PMNode): Span {

@@ -1,150 +1,211 @@
 .toolbarWrapper {
-  width: min(100%, 794px);
-  max-width: 794px;
-  margin: 0 auto;
-  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 8px 16px;
+  background: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
 }
 
 .toolbar {
+  background: white;
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #ffffff;
-  overflow-x: auto;
-  white-space: nowrap;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  gap: 4px;
+  transition: all 0.3s ease;
 }
 
-/* Scrollbar subtle styling */
-.toolbar::-webkit-scrollbar {
-  height: 6px;
+.toolbar:hover {
+  background: white;
 }
 
-.toolbar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 4px;
+.divider {
+  width: 1px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0.1);
+  margin: 0 4px;
 }
 
-/* Generic icon button */
 .iconButton {
-  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 8px;
   border: none;
-  cursor: pointer;
+  background: transparent;
   color: #4b5563;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .iconButton:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #111;
 }
 
 .active {
-  color: #2563eb;
-  background: #eff6ff;
+  background-color: #111 !important;
+  color: #fff !important;
 }
 
-/* Group wrapper for select + icon */
 .group {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  background: #ffffff;
-  flex-shrink: 0;
+  gap: 4px;
+  padding: 0 4px;
+  color: #4b5563;
 }
 
-/* Dropdown styling */
 .select {
   border: none;
-  outline: none;
   background: transparent;
-  font-size: 14px;
-  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  color: inherit;
+  outline: none;
   cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 
-/* Smaller dropdown for font size */
+.select:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
 .selectSmall {
-  width: 60px;
+  width: 45px;
 }
 
-/* Divider */
-.divider {
-  width: 1px;
-  height: 24px;
-  background: #e5e7eb;
-  margin: 0 2px;
-  flex-shrink: 0;
-}
-
-/* Margins popover wrapper */
+/* Margins Popover */
 .marginsWrapper {
   position: relative;
-  flex-shrink: 0;
 }
 
 .marginsPopover {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 100%;
   right: 0;
+  margin-top: 12px;
   background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 14px 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 100;
   min-width: 200px;
 }
 
 .marginsTitle {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
+  letter-spacing: 0.1em;
+  color: #9ca3af;
+  margin-bottom: 12px;
 }
 
 .marginsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
 .marginLabel {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
-  color: #374151;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b5563;
 }
 
 .marginInput {
-  width: 100%;
-  padding: 5px 8px;
-  border: 1px solid #d1d5db;
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
   border-radius: 6px;
-  font-size: 13px;
-  color: #111827;
+  font-size: 12px;
   outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.15s;
 }
 
 .marginInput:focus {
-  border-color: #2563eb;
+  border-color: #111;
+}
+
+.exportButton {
+  width: auto !important;
+  padding: 0 12px !important;
+  background-color: #111 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  gap: 6px;
+  border-radius: 8px !important;
+  margin-left: 4px;
+}
+
+.exportButton:hover {
+  background-color: #333 !important;
+}
+
+.exportText {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.exportWrapper {
+  position: relative;
+  display: flex;
+}
+
+.exportMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  padding: 6px;
+  min-width: 180px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.menuItem {
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.menuItem:hover {
+  background-color: #f3f4f6;
+  color: #111;
+}
+
+.chevron {
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+
+.active .chevron {
+  transform: rotate(180deg);
 }

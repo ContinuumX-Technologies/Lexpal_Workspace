@@ -105,7 +105,7 @@ const Tiptap = () => {
     <div className={styles.editorRoot}>
       <MenuBar editor={editor} />
       <div className={styles.desk} style={pageStyle}>
-        <div className={styles.pageWrapper}>
+        <div id="draft-page-wrapper" className={styles.pageWrapper}>
           <div className={styles.editorSurface}>
             <EditorContent editor={editor} />
           </div>
