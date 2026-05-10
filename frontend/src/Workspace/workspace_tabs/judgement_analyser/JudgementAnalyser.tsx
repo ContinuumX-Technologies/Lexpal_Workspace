@@ -4,7 +4,7 @@ import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
-
+type TaskType = CaseTask | "full";
 
 interface TextBlock {
   type: string;
@@ -24,8 +24,7 @@ interface CaseDoc {
 
 const JudgementAnalyser: React.FC = () => {
   const { caseId } = useParams<{ caseId: string }>();
-  const [activeTask, setActiveTask] = useState<CaseTask>("facts");
-  const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
+  const [activeTask, setActiveTask] = useState<TaskType>("full");
   const [loading, setLoading] = useState(false);
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
   const [judgementText, setJudgementText] = useState("");
@@ -120,12 +119,6 @@ const JudgementAnalyser: React.FC = () => {
       if (!res.ok) throw new Error("Failed to fetch judgment");
       const data = await res.json();
       setCaseData(data);
-
-      // Concatenate all text segments for analysis
-      if (data.texts && Array.isArray(data.texts)) {
-        const fullText = data.texts.map((t: TextBlock) => t.content).join("\n\n");
-        setJudgementText(fullText);
-      }
     } catch (err) {
       console.error("Error fetching judgment details:", err);
     } finally {
@@ -134,31 +127,23 @@ const JudgementAnalyser: React.FC = () => {
   };
 
   useEffect(() => {
-    if (judgementText && !analysisResults[activeTask]) {
-      fetchAnalysis(activeTask);
-    }
-  }, [activeTask, judgementText]);
-
-  const fetchAnalysis = async (task: CaseTask) => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/documents/judgement-analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ judgementText, task }),
-      });
-      const data = await response.json();
-      if (data.result) {
-        setAnalysisResults(prev => ({ ...prev, [task]: data.result }));
+    if (caseData && caseData.texts) {
+      if (activeTask === "full") {
+        setJudgementText(caseData.texts.map(t => t.content).join("\n\n"));
+      } else {
+        const targetType = taskToMongoType[activeTask as CaseTask];
+        const filtered = caseData.texts.filter(t => t.type === targetType);
+        const content = filtered.length > 0 
+          ? filtered.map(t => t.content).join("\n\n") 
+          : "";
+        
+        setJudgementText(content);
       }
-    } catch (err) {
-      console.error("Analysis fetch failed:", err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [activeTask, caseData]);
 
-  const navItems: { id: CaseTask; label: string }[] = [
+  const navItems: { id: TaskType; label: string }[] = [
+    { id: "full", label: "Full Judgement" },
     { id: "facts", label: "Facts" },
     { id: "issues", label: "Issues" },
     { id: "petitioner_args", label: "Petitioner Args." },
@@ -168,6 +153,17 @@ const JudgementAnalyser: React.FC = () => {
     { id: "court_reasoning", label: "Court's Reasoning" },
     { id: "conclusion", label: "Conclusion" },
   ];
+
+  const taskToMongoType: Record<CaseTask, string> = {
+    facts: "Fact",
+    issues: "Issue",
+    petitioner_args: "Petitioner's Argument",
+    respondent_args: "Respondent's Argument",
+    law_analysis: "Analysis of the law",
+    precedent_analysis: "Precedent Analysis",
+    court_reasoning: "Court's Reasoning",
+    conclusion: "Conclusion"
+  };
 
   return (
     <div className={styles.container} ref={mainRef}>
@@ -222,32 +218,9 @@ const JudgementAnalyser: React.FC = () => {
         {/* Judgment text section */}
         <section className={styles.judgmentSection}>
           <div className={styles.judgmentContent}>
-            {loading ? (
+            {loading && activeTask === "full" && (
               <div className={styles.loadingContainer}>
-                <p>Analyzing {navItems.find(i => i.id === activeTask)?.label}...</p>
-              </div>
-            ) : (
-              <div className={styles.analysisResult}>
-                <h2 className={styles.analysisSubTitle}>{navItems.find(i => i.id === activeTask)?.label}</h2>
-                <div className={styles.judgmentText}>
-                  {analysisResults[activeTask]
-                    ? analysisResults[activeTask]
-                        .split(/(\n|(?<=\S)\s+(?=[-*•]|\d+\.|\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
-                        .map((line, i) => {
-                          const trimmed = line.trim();
-                          if (!trimmed || line === '\n') return null;
-                          
-                          // List items in analysis
-                          if (/^([-*•]|\d+\.|\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/.test(trimmed)) {
-                            return <p key={i} className={styles.listItem}>{line}</p>;
-                          }
-                          
-                          // Continuation lines or plain paragraphs
-                          return <p key={i} style={{ textIndent: '1rem' }}>{line}</p>;
-                        })
-                    : <p>Select a tab to begin analysis.</p>
-                  }
-                </div>
+                <p>Loading judgement...</p>
               </div>
             )}
 
@@ -256,11 +229,18 @@ const JudgementAnalyser: React.FC = () => {
             {caseData ? (
               <div className={styles.originalJudgement}>
                 <div className={styles.metadata}>
-                  <span className={`${styles.chip} ${styles.metaChip}`}>{caseData.judgement_type}</span>
-                  <span className={`${styles.chip} ${styles.metaChip}`}>{caseData.year}</span>
-                  <span className={styles.dateChip}>
+                  <div className={styles.metaChip}>
+                    <span className={`${styles.materialIcon} ${styles.iconExtraSmall}`}>balance</span>
+                    {caseData.judgement_type}
+                  </div>
+                  <div className={styles.metaChip}>
+                    <span className={`${styles.materialIcon} ${styles.iconExtraSmall}`}>tag</span>
+                    {caseData.year}
+                  </div>
+                  <div className={styles.dateChip}>
+                    <span className={`${styles.materialIcon} ${styles.iconExtraSmall}`}>calendar_today</span>
                     {caseData.createdAt ? new Date(caseData.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "N/A"}
-                  </span>
+                  </div>
                 </div>
 
                 <h1 className={styles.title}>{caseData.title}</h1>
@@ -276,35 +256,43 @@ const JudgementAnalyser: React.FC = () => {
                 </div>
 
                 <div className={styles.judgmentText}>
-                  {caseData.texts.map((t, idx) => (
-                    <React.Fragment key={idx}>
-                      {/* Split by newline OR inline markers like (i), (ii), (a) that follow text */}
-                      {t.content
-                        .split(/(\n|(?<=\S)\s+(?=\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
-                        .map((line, lineIdx) => {
-                          const trimmed = line.trim();
-                          if (!trimmed || line === '\n') return null;
+                  {(activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask])).length > 0 ? (
+                    (activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask]))
+                      .map((t, idx) => (
+                        <React.Fragment key={idx}>
+                          {/* Split by newline OR inline markers like (i), (ii), (a) that follow text */}
+                          {t.content
+                            .split(/(\n|(?<=\S)\s+(?=\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
+                            .map((line, lineIdx) => {
+                              const trimmed = line.trim();
+                              if (!trimmed || line === '\n') return null;
 
-                          // Main paragraph starting with "1.", "¶ 1", etc.
-                          if (/^(\d+\.|\u00b6\s*\d+)/.test(trimmed)) {
-                            return <p key={lineIdx} className={styles.para}>{line}</p>;
-                          }
+                              // Main paragraph starting with "1.", "¶ 1", etc.
+                              if (/^(\d+\.|\u00b6\s*\d+)/.test(trimmed)) {
+                                return <p key={lineIdx} className={styles.para}>{line}</p>;
+                              }
 
-                          // List items starting with "(a)", "a.", "(i)", etc.
-                          if (/^(\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/i.test(trimmed)) {
-                            return <p key={lineIdx} className={styles.listItem}>{line}</p>;
-                          }
+                              // List items starting with "(a)", "a.", "(i)", etc.
+                              if (/^(\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/i.test(trimmed)) {
+                                return <p key={lineIdx} className={styles.listItem}>{line}</p>;
+                              }
 
-                          // Sub-list items or deeply indented lines
-                          if (line.startsWith('    ') || line.startsWith('\t')) {
-                            return <p key={lineIdx} className={styles.subListItem}>{line}</p>;
-                          }
+                              // Sub-list items or deeply indented lines
+                              if (line.startsWith('    ') || line.startsWith('\t')) {
+                                return <p key={lineIdx} className={styles.subListItem}>{line}</p>;
+                              }
 
-                          // Plain paragraphs
-                          return <p key={lineIdx} style={{ textIndent: '2rem' }}>{line}</p>;
-                        })}
-                    </React.Fragment>
-                  ))}
+                              // Plain paragraphs
+                              return <p key={lineIdx} style={{ textIndent: '2rem' }}>{line}</p>;
+                            })}
+                        </React.Fragment>
+                      ))
+                  ) : (
+                    <div className={styles.emptyState}>
+                      <span className={`${styles.materialIcon} ${styles.iconLarge}`}>info</span>
+                      <p>No original content labeled "{navItems.find(i => i.id === activeTask)?.label}" found in this document.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : !loading && (
