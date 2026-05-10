@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
+import JudgementAiChat from "./JudgementAiChat";
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 interface TextBlock {
   type: string;
@@ -30,17 +27,11 @@ const JudgementAnalyser: React.FC = () => {
   const [activeTask, setActiveTask] = useState<CaseTask>("facts");
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [userInput, setUserInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
   const [judgementText, setJudgementText] = useState("");
-  const [pins, setPins] = useState<{ id: string; text: string; fullText: string }[]>([
-    { id: "1", text: "Ratio Decidendi", fullText: "Ratio Decidendi" }
-  ]);
+  const [pins, setPins] = useState<{ id: string; text: string; fullText: string }[]>([]);
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
 
   // Fetch document details when caseId changes
@@ -122,10 +113,6 @@ const JudgementAnalyser: React.FC = () => {
     setPins(prev => prev.filter(p => p.id !== id));
   };
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory]);
-
   const fetchCaseDetails = async (id: string) => {
     try {
       setLoading(true);
@@ -152,10 +139,6 @@ const JudgementAnalyser: React.FC = () => {
     }
   }, [activeTask, judgementText]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory]);
-
   const fetchAnalysis = async (task: CaseTask) => {
     try {
       setLoading(true);
@@ -172,35 +155,6 @@ const JudgementAnalyser: React.FC = () => {
       console.error("Analysis fetch failed:", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!userInput.trim()) return;
-
-    const newMessage: ChatMessage = { role: "user", content: userInput };
-    setChatHistory(prev => [...prev, newMessage]);
-    setUserInput("");
-    setChatLoading(true);
-
-    try {
-      const response = await fetch("/api/documents/judgement-analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          judgementText,
-          query: userInput,
-          history: chatHistory
-        }),
-      });
-      const data = await response.json();
-      if (data.result) {
-        setChatHistory(prev => [...prev, { role: "assistant", content: data.result }]);
-      }
-    } catch (err) {
-      console.error("Chat failed:", err);
-    } finally {
-      setChatLoading(false);
     }
   };
 
@@ -366,64 +320,7 @@ const JudgementAnalyser: React.FC = () => {
           <div className={styles.chatHeader}>
             <span className={styles.chatTitle}>LEXPAL AI</span>
           </div>
-
-          <div className={styles.chatMessages}>
-            <div className={styles.messageGroup}>
-              <p className={`${styles.messageSender} ${styles.senderAI}`}>LexAI</p>
-              <div className={styles.messageBubble}>
-                <p className={styles.messageText}>Hello! I've analyzed this judgement. How can I help you today?</p>
-              </div>
-            </div>
-
-            {chatHistory.map((msg, i) => (
-              <div key={i} className={styles.messageGroup}>
-                <p className={`${styles.messageSender} ${msg.role === 'assistant' ? styles.senderAI : ''}`}>
-                  {msg.role === 'user' ? 'You' : 'LexAI'}
-                </p>
-                <div className={styles.messageBubble}>
-                  <div className={styles.messageText}>
-                    {msg.content.split('\n').map((line, j) => (
-                      <p key={j} style={{ margin: '4px 0' }}>{line}</p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {chatLoading && (
-              <div className={styles.messageGroup}>
-                <p className={`${styles.messageSender} ${styles.senderAI}`}>LexAI</p>
-                <div className={styles.messageBubble}>
-                  <p className={styles.messageText}>Thinking...</p>
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className={styles.chatInputArea}>
-            <div className={styles.inputContainer}>
-              <div className={styles.inputRow}>
-                <button className={styles.addButton}>
-                  <span className={`${styles.materialIcon} ${styles.iconMedium}`}>add_circle</span>
-                </button>
-                <textarea
-                  className={styles.textInput}
-                  placeholder="Ask about this judgment..."
-                  rows={1}
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-                ></textarea>
-                <button
-                  className={styles.sendButton}
-                  onClick={handleSendMessage}
-                  disabled={chatLoading}
-                >
-                  <span className={`${styles.materialIcon} ${styles.iconSmall}`}>arrow_upward</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          <JudgementAiChat judgementText={judgementText} />
         </aside>
       </main>
 
