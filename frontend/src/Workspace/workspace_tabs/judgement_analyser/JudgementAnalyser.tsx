@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
@@ -8,13 +9,32 @@ interface ChatMessage {
   content: string;
 }
 
+interface TextBlock {
+  type: string;
+  content: string;
+}
+
+interface CaseDoc {
+  _id: string;
+  title: string;
+  judgement_type: string;
+  year: number;
+  bench: string[];
+  texts: TextBlock[];
+  createdAt: string;
+  summary?: any;
+}
+
 const JudgementAnalyser: React.FC = () => {
+  const { caseId } = useParams<{ caseId: string }>();
   const [activeTask, setActiveTask] = useState<CaseTask>("facts");
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [userInput, setUserInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [caseData, setCaseData] = useState<CaseDoc | null>(null);
+  const [judgementText, setJudgementText] = useState("");
   const [pins, setPins] = useState<{ id: string; text: string; fullText: string }[]>([
     { id: "1", text: "Ratio Decidendi", fullText: "Ratio Decidendi" }
   ]);
@@ -22,6 +42,13 @@ const JudgementAnalyser: React.FC = () => {
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+
+  // Fetch document details when caseId changes
+  useEffect(() => {
+    if (caseId) {
+      fetchCaseDetails(caseId);
+    }
+  }, [caseId]);
 
   const navigateToPin = (id: string, fullText: string) => {
     // Find paragraphs containing the text
@@ -95,20 +122,29 @@ const JudgementAnalyser: React.FC = () => {
     setPins(prev => prev.filter(p => p.id !== id));
   };
 
-  // Hardcoded for now as per the "placeholder" requirement, but will be used for analysis
-  const [judgementText] = useState(`
-State of New York v. Marcus Thompson
-2026 INSC 4321, 26 January 2025
-Bench: Hon'ble Justice S. Roberts, Hon'ble Justice A. Kagan
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory]);
 
-¶ 12 The Appellant contends that the search warrant issued on the 14th of June was defective due to a lack of specificity regarding the digital assets to be seized. It is established law that a warrant must describe the things to be seized with reasonable particularity.
+  const fetchCaseDetails = async (id: string) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`http://localhost:3001/api/judgements/${id}`);
+      if (!res.ok) throw new Error("Failed to fetch judgment");
+      const data = await res.json();
+      setCaseData(data);
 
-¶ 13 In the present case, the warrant authorized the seizure of "all electronic devices capable of storing digital data." We find that this broad phrasing, in the context of a residential search for evidence of financial fraud, is not per se unconstitutional.
-
-¶ 14 The court must balance the Fourth Amendment protections against the practical realities of modern digital forensics. The mere presence of non-responsive data on a device does not render the entire seizure unreasonable, provided that the initial intrusion was justified by probable cause.
-
-¶ 15 Referring to United States v. Ross [1982], the scope of a warrantless search is defined by the object of the search and the places in which there is probable cause to believe that it may be found.
-  `);
+      // Concatenate all text segments for analysis
+      if (data.texts && Array.isArray(data.texts)) {
+        const fullText = data.texts.map((t: TextBlock) => t.content).join("\n\n");
+        setJudgementText(fullText);
+      }
+    } catch (err) {
+      console.error("Error fetching judgment details:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!analysisResults[activeTask]) {
@@ -123,7 +159,7 @@ Bench: Hon'ble Justice S. Roberts, Hon'ble Justice A. Kagan
   const fetchAnalysis = async (task: CaseTask) => {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:3001/api/documents/judgement-analyse", {
+      const response = await fetch("/api/documents/judgement-analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ judgementText, task }),
@@ -148,7 +184,7 @@ Bench: Hon'ble Justice S. Roberts, Hon'ble Justice A. Kagan
     setChatLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3001/api/documents/judgement-analyse", {
+      const response = await fetch("/api/documents/judgement-analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -241,50 +277,87 @@ Bench: Hon'ble Justice S. Roberts, Hon'ble Justice A. Kagan
                 <h2 className={styles.analysisSubTitle}>{navItems.find(i => i.id === activeTask)?.label}</h2>
                 <div className={styles.judgmentText}>
                   {analysisResults[activeTask]
-                    ? analysisResults[activeTask].split('\n').map((line, i) => (
-                      <p key={i}>{line}</p>
-                    ))
+                    ? analysisResults[activeTask]
+                        .split(/(\n|(?<=\S)\s+(?=[-*•]|\d+\.|\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
+                        .map((line, i) => {
+                          const trimmed = line.trim();
+                          if (!trimmed || line === '\n') return null;
+                          
+                          // List items in analysis
+                          if (/^([-*•]|\d+\.|\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/.test(trimmed)) {
+                            return <p key={i} className={styles.listItem}>{line}</p>;
+                          }
+                          
+                          // Continuation lines or plain paragraphs
+                          return <p key={i} style={{ textIndent: '1rem' }}>{line}</p>;
+                        })
                     : <p>Select a tab to begin analysis.</p>
                   }
                 </div>
               </div>
             )}
 
-            <hr className={styles.divider} style={{ margin: '40px 0', opacity: 0.1 }} />
+            <div style={{ height: '2rem' }} />
 
-            <div className={styles.originalJudgement}>
-              <div className={styles.metadata}>
-                <span className={`${styles.chip} ${styles.metaChip}`}>supreme court of india</span>
-                <span className={`${styles.chip} ${styles.metaChip}`}>2026 INSC 4321</span>
-                <span className={styles.dateChip}>26 january 2025</span>
-              </div>
-
-              <h1 className={styles.title}>State of New York v. Marcus Thompson</h1>
-
-              <div className={styles.benchInfo}>
-                <span className={`${styles.materialIcon} ${styles.iconMedium} ${styles.iconGray}`}>gavel</span>
-                <div className={styles.benchText}>
-                  <span className={styles.benchLabel}>Judges on the Bench</span>
-                  <span className={styles.benchNames}>Hon'ble Justice S. Roberts, Hon'ble Justice A. Kagan</span>
+            {caseData ? (
+              <div className={styles.originalJudgement}>
+                <div className={styles.metadata}>
+                  <span className={`${styles.chip} ${styles.metaChip}`}>{caseData.judgement_type}</span>
+                  <span className={`${styles.chip} ${styles.metaChip}`}>{caseData.year}</span>
+                  <span className={styles.dateChip}>
+                    {caseData.createdAt ? new Date(caseData.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "N/A"}
+                  </span>
                 </div>
-              </div>
 
-              <div className={styles.judgmentText}>
-                <p>
-                  <span className={styles.paraNumber}>¶ 12</span>
-                  The Appellant contends that the search warrant issued on the 14th of June was defective due to a lack of specificity regarding the digital assets to be seized. It is established law that a warrant must describe the things to be seized with reasonable particularity.
-                </p>
-                <div className={styles.highlightedPara}>
-                  <div className={styles.highlightBackground}></div>
-                  <p className={styles.highlightText}>
-                    <span className={styles.paraNumber}>¶ 14</span>
-                    <span className={styles.highlightContent}>
-                      The court must balance the Fourth Amendment protections against the practical realities of modern digital forensics. The mere presence of non-responsive data on a device does not render the entire seizure unreasonable, provided that the initial intrusion was justified by probable cause.
+                <h1 className={styles.title}>{caseData.title}</h1>
+
+                <div className={styles.benchInfo}>
+                  <span className={`${styles.materialIcon} ${styles.iconMedium} ${styles.iconGray}`}>gavel</span>
+                  <div className={styles.benchText}>
+                    <span className={styles.benchLabel}>Judges on the Bench</span>
+                    <span className={styles.benchNames}>
+                      {caseData.bench && caseData.bench.length > 0 ? caseData.bench.join(", ") : "Not specified"}
                     </span>
-                  </p>
+                  </div>
+                </div>
+
+                <div className={styles.judgmentText}>
+                  {caseData.texts.map((t, idx) => (
+                    <React.Fragment key={idx}>
+                      {/* Split by newline OR inline markers like (i), (ii), (a) that follow text */}
+                      {t.content
+                        .split(/(\n|(?<=\S)\s+(?=\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
+                        .map((line, lineIdx) => {
+                          const trimmed = line.trim();
+                          if (!trimmed || line === '\n') return null;
+
+                          // Main paragraph starting with "1.", "¶ 1", etc.
+                          if (/^(\d+\.|\u00b6\s*\d+)/.test(trimmed)) {
+                            return <p key={lineIdx} className={styles.para}>{line}</p>;
+                          }
+
+                          // List items starting with "(a)", "a.", "(i)", etc.
+                          if (/^(\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/i.test(trimmed)) {
+                            return <p key={lineIdx} className={styles.listItem}>{line}</p>;
+                          }
+
+                          // Sub-list items or deeply indented lines
+                          if (line.startsWith('    ') || line.startsWith('\t')) {
+                            return <p key={lineIdx} className={styles.subListItem}>{line}</p>;
+                          }
+
+                          // Plain paragraphs
+                          return <p key={lineIdx} style={{ textIndent: '2rem' }}>{line}</p>;
+                        })}
+                    </React.Fragment>
+                  ))}
                 </div>
               </div>
-            </div>
+            ) : !loading && (
+              <div className={styles.emptyState}>
+                <p>No judgment loaded. Please select a case from the Search tab.</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -360,7 +433,7 @@ Bench: Hon'ble Justice S. Roberts, Hon'ble Justice A. Kagan
           <span className={`${styles.materialIcon} ${styles.iconTiny}`}>folder</span>
           <a href="#" className={styles.footerLink}>Legal Projects</a>
           <span className={styles.footerSeparator}>/</span>
-          <span className={styles.footerCurrent}>NY v. Thompson</span>
+          <span className={styles.footerCurrent}>{caseData ? caseData.title : "No Case Selected"}</span>
         </div>
         <div className={styles.footerRight}>
           <div className={styles.footerItem}>

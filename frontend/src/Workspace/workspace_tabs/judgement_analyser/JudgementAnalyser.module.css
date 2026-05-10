@@ -302,8 +302,32 @@
 }
 
 .judgmentText p {
-  margin-bottom: 2rem;
+  margin-bottom: 0.75rem;
   position: relative;
+  text-align: justify;
+  line-height: 1.6;
+}
+
+.para {
+  margin-top: 1rem;
+}
+
+.listItem {
+  padding-left: 2rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.subListItem {
+  padding-left: 4rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.listItem::before {
+  content: "";
+  position: absolute;
+  left: 0;
 }
 
 .highlightedPara {

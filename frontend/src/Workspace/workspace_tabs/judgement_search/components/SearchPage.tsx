@@ -29,8 +29,17 @@ const RECENT_MOCK = [
 ];
 
 export default function SearchPage() {
-  const { search, appState, pinnedCases, togglePin } = useJDSearch();
+  const { 
+    search, appState, pinnedCases, togglePin,
+    jurisdiction, setJurisdiction,
+    year, setYear,
+    status, setStatus,
+    area, setArea,
+    resetFilters
+  } = useJDSearch();
+  
   const [query, setQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   const handleSearch = useCallback(() => {
     if (query.trim()) search(query.trim());
@@ -103,12 +112,80 @@ export default function SearchPage() {
 
         {/* Filters row */}
         <div className={styles.filtersRow}>
-          <button className={styles.filterBtn}>
+          <button 
+            className={`${styles.filterBtn} ${showFilters ? styles.filterBtnActive : ""}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
             <span className={`material-symbols-outlined ${styles.filterBtnIcon}`}>tune</span>
-            + Filters
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#94a3b8" }}>expand_more</span>
+            {showFilters ? "Hide Filters" : "+ Filters"}
+            <span className={`material-symbols-outlined ${styles.expandIcon} ${showFilters ? styles.expanded : ""}`}>expand_more</span>
           </button>
+          
+          {/* Active filter chips */}
+          {(jurisdiction || year || status || area) && (
+            <button className={styles.clearAllBtn} onClick={resetFilters}>Clear all</button>
+          )}
         </div>
+
+        {/* Expandable Filter Panel */}
+        {showFilters && (
+          <div className={styles.filterPanel}>
+            <div className={styles.filterGrid}>
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Jurisdiction</label>
+                <select 
+                  className={styles.filterSelect}
+                  value={jurisdiction}
+                  onChange={(e) => setJurisdiction(e.target.value)}
+                >
+                  <option value="">All Jurisdictions</option>
+                  <option value="Supreme court">Supreme Court</option>
+                  <option value="High court">High Court</option>
+                </select>
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Year</label>
+                <input 
+                  type="number"
+                  className={styles.filterInput}
+                  placeholder="e.g. 2023"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Status</label>
+                <select 
+                  className={styles.filterSelect}
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="Reportable">Reportable</option>
+                  <option value="Non-reportable">Non-reportable</option>
+                </select>
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Legal Area</label>
+                <select 
+                  className={styles.filterSelect}
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                >
+                  <option value="">All Areas</option>
+                  <option value="Arbitration">Arbitration</option>
+                  <option value="Criminal">Criminal</option>
+                  <option value="Civil">Civil</option>
+                  <option value="Constitutional">Constitutional</option>
+                  <option value="Taxation">Taxation</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Suggested chips */}
         <div className={styles.suggestedSection}>

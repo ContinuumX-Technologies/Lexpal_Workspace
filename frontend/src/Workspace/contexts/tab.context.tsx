@@ -4,6 +4,8 @@ import React from "react"
 
 import  { createContext, useContext, useState } from "react";
 
+import { useParams } from 'react-router-dom';
+
 export type TabType =
   | "law_search"
   | "judgement_search"
@@ -25,7 +27,8 @@ const tabContext= createContext<tabContextType|null>(null);
 
 //pvdr component
 export const TabContextPvdr=({children}:{children:React.ReactNode})=>{
-    const [activeTab, setActiveTab]=useState<TabType>("law_search");
+    const { caseId } = useParams<{ caseId: string }>();
+    const [activeTab, setActiveTab]=useState<TabType>(caseId ? "judgement_search" : "law_search");
     const [isLeftPanelOpen, setIsLeftPanelOpen]=useState<boolean>(false);
 
     // plain js shorthand activeTab: activeTab

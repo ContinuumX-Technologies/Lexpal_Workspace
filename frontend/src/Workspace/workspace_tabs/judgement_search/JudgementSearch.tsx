@@ -6,7 +6,7 @@ function AppRouter() {
   const { appState } = useJDSearch();
 
   // Show results page once we have results (or are reloading them)
-  if (appState === "results" || appState === "reloading") {
+  if (appState === "results" || appState === "reloading" || appState === "loadingMore") {
     return <ResultsPage />;
   }
 
