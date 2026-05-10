@@ -22,6 +22,14 @@ interface TextBlock {
   content: string;
 }
 
+interface Highlight {
+  id: string;
+  text: string;
+  color: string;
+  paraKey: string;
+  offset: number;
+}
+
 interface CaseDoc {
   _id: string;
   title: string;
@@ -44,15 +52,97 @@ const JudgementAnalyser: React.FC = () => {
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string; paraKey?: string; offset?: number } | null>(null);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
   // id lets us remove individual highlights
-  const [highlights, setHighlights] = useState<{ id: string; text: string; color: string; paraKey: string; offset: number }[]>([]);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [currentHighlightIndices, setCurrentHighlightIndices] = useState<Record<string, number>>({});
   const mainRef = useRef<HTMLDivElement>(null);
 
-  const addHighlight = (text: string, color: string, paraKey?: string, offset?: number) => {
-    if (!text || !paraKey || offset === undefined) return;
-    const id = `${Date.now()}-${Math.random()}`;
-    setHighlights(prev => [...prev, { id, text, color, paraKey, offset }]);
+  const navigateByColor = (color: string, direction: 'next' | 'prev') => {
+    const colorHighlights = highlights
+      .filter(h => h.color === color)
+      .sort((a, b) => {
+        const [aBlock, aLine] = a.paraKey.split('-').map(Number);
+        const [bBlock, bLine] = b.paraKey.split('-').map(Number);
+        if (aBlock !== bBlock) return aBlock - bBlock;
+        if (aLine !== bLine) return aLine - bLine;
+        return a.offset - b.offset;
+      });
+
+    if (colorHighlights.length === 0) return;
+
+    let nextIndex = (currentHighlightIndices[color] || 0);
+    if (direction === 'next') {
+      nextIndex = (nextIndex + 1) % colorHighlights.length;
+    } else {
+      nextIndex = (nextIndex - 1 + colorHighlights.length) % colorHighlights.length;
+    }
+
+    setCurrentHighlightIndices(prev => ({ ...prev, [color]: nextIndex }));
+    const target = colorHighlights[nextIndex];
+    
+    const element = document.querySelector(`[data-para-key="${target.paraKey}"]`) as HTMLElement;
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Temporary flash to show which one is selected
+      element.style.outline = `2px solid ${color}`;
+      element.style.outlineOffset = '2px';
+      setTimeout(() => {
+        element.style.outline = 'none';
+      }, 1500);
+    }
+  };
+
+  const addHighlight = (color: string) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const container = document.querySelector(`.${styles.judgmentSection}`);
+    if (!container) return;
+
+    const allParas = Array.from(container.querySelectorAll('p[data-para-key]')) as HTMLElement[];
+    const newHighlights: Highlight[] = [];
+
+    allParas.forEach(para => {
+      if (selection.containsNode(para, true)) {
+        const paraKey = para.getAttribute('data-para-key')!;
+        let startOffset = 0;
+        let endOffset = para.textContent?.length || 0;
+
+        // If selection starts in this para
+        if (para.contains(range.startContainer)) {
+          const preRange = document.createRange();
+          preRange.selectNodeContents(para);
+          preRange.setEnd(range.startContainer, range.startOffset);
+          startOffset = preRange.toString().length;
+        }
+
+        // If selection ends in this para
+        if (para.contains(range.endContainer)) {
+          const preRange = document.createRange();
+          preRange.selectNodeContents(para);
+          preRange.setEnd(range.endContainer, range.endOffset);
+          endOffset = preRange.toString().length;
+        }
+
+        const text = para.textContent?.substring(startOffset, endOffset) || "";
+        if (text.trim()) {
+          newHighlights.push({
+            id: `${Date.now()}-${Math.random()}`,
+            text,
+            color,
+            paraKey,
+            offset: startOffset
+          });
+        }
+      }
+    });
+
+    if (newHighlights.length > 0) {
+      setHighlights(prev => [...prev, ...newHighlights]);
+    }
+    
     setSelectionMenu(null);
-    window.getSelection()?.removeAllRanges();
+    selection.removeAllRanges();
   };
 
   const removeHighlightByParaKey = (paraKey: string, offset: number) => {
@@ -143,20 +233,17 @@ const JudgementAnalyser: React.FC = () => {
       const commonAncestor = range.commonAncestorContainer;
       
       if (container && container.contains(commonAncestor)) {
-        // Find the exact <p> element and its unique paraKey
-        const para = commonAncestor.nodeType === 1
-          ? (commonAncestor as HTMLElement).closest('p')
-          : commonAncestor.parentElement?.closest('p');
-        const paraKeyAttr = para?.getAttribute('data-para-key');
-
+        // Check if start and end are in the same paragraph
+        const startPara = range.startContainer.nodeType === 1 ? (range.startContainer as HTMLElement).closest('p') : range.startContainer.parentElement?.closest('p');
+        const endPara = range.endContainer.nodeType === 1 ? (range.endContainer as HTMLElement).closest('p') : range.endContainer.parentElement?.closest('p');
+        
         let paraKey: string | undefined;
         let offset: number | undefined;
 
-        if (para && paraKeyAttr != null) {
-          paraKey = paraKeyAttr;
-          // Character offset from the start of this <p>
+        if (startPara && startPara === endPara && startPara.hasAttribute('data-para-key')) {
+          paraKey = startPara.getAttribute('data-para-key')!;
           const preRange = range.cloneRange();
-          preRange.selectNodeContents(para);
+          preRange.selectNodeContents(startPara);
           preRange.setEnd(range.startContainer, range.startOffset);
           offset = preRange.toString().length;
         }
@@ -269,7 +356,7 @@ const JudgementAnalyser: React.FC = () => {
           </div>
         </div>
 
-        {/* Navigation tabs */}
+        {/* Floating Horizontal Navigation Gutter at the top */}
         <nav className={styles.nav}>
           <div className={styles.navList}>
             {navItems.map(item => (
@@ -277,7 +364,6 @@ const JudgementAnalyser: React.FC = () => {
                 key={item.id}
                 onClick={() => setActiveTask(item.id)}
                 className={`${styles.navLink} ${activeTask === item.id ? styles.navLinkActive : ""}`}
-                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
               >
                 {item.label}
               </button>
@@ -377,6 +463,37 @@ const JudgementAnalyser: React.FC = () => {
             )}
           </div>
         </section>
+        
+        {/* Vertical Highlight Navigator in the gutter */}
+        {highlights.length > 0 && (
+          <div className={styles.gutterToolbar}>
+            <div className={styles.gutterHeader} title="Highlight Navigator">
+              <span className={`${styles.materialIcon} ${styles.iconSmall}`}>auto_awesome</span>
+            </div>
+            <div className={styles.gutterContent}>
+              {Object.entries(
+                highlights.reduce((acc, h) => {
+                  if (!acc[h.color]) acc[h.color] = 0;
+                  acc[h.color]++;
+                  return acc;
+                }, {} as Record<string, number>)
+              ).map(([color, count]) => (
+                <div key={color} className={styles.gutterGroup}>
+                  <div className={styles.gutterColorDot} style={{ backgroundColor: color }} />
+                  <span className={styles.gutterCount}>{count}</span>
+                  <div className={styles.gutterArrows}>
+                    <button onClick={() => navigateByColor(color, 'prev')} className={styles.gutterArrow} title="Previous">
+                      <span className={styles.materialIcon}>expand_less</span>
+                    </button>
+                    <button onClick={() => navigateByColor(color, 'next')} className={styles.gutterArrow} title="Next">
+                      <span className={styles.materialIcon}>expand_more</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Chat aside */}
         <aside className={styles.chatAside}>
@@ -431,25 +548,25 @@ const JudgementAnalyser: React.FC = () => {
             <button 
               className={styles.colorCircle} 
               style={{ backgroundColor: '#fef08a' }} 
-              onClick={() => addHighlight(selectionMenu?.text, '#fef08a', selectionMenu?.paraKey, selectionMenu?.offset)}
+              onClick={() => addHighlight('#fef08a')}
               title="Yellow"
             />
             <button 
               className={styles.colorCircle} 
               style={{ backgroundColor: '#bbf7d0' }} 
-              onClick={() => addHighlight(selectionMenu?.text, '#bbf7d0', selectionMenu?.paraKey, selectionMenu?.offset)}
+              onClick={() => addHighlight('#bbf7d0')}
               title="Green"
             />
             <button 
               className={styles.colorCircle} 
               style={{ backgroundColor: '#bfdbfe' }} 
-              onClick={() => addHighlight(selectionMenu?.text, '#bfdbfe', selectionMenu?.paraKey, selectionMenu?.offset)}
+              onClick={() => addHighlight('#bfdbfe')}
               title="Blue"
             />
             <button 
               className={styles.colorCircle} 
               style={{ backgroundColor: '#fbcfe8' }} 
-              onClick={() => addHighlight(selectionMenu?.text, '#fbcfe8', selectionMenu?.paraKey, selectionMenu?.offset)}
+              onClick={() => addHighlight('#fbcfe8')}
               title="Pink"
             />
             {selectionMenu?.paraKey && selectionMenu?.offset !== undefined && highlights.some(h => h.paraKey === selectionMenu.paraKey && h.offset === selectionMenu.offset) && (
