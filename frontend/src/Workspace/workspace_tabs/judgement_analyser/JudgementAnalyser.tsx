@@ -6,6 +6,17 @@ import JudgementAiChat from "./JudgementAiChat";
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 type TaskType = CaseTask | "full";
 
+const taskToMongoType: Record<CaseTask, string> = {
+  facts: "Fact",
+  issues: "Issue",
+  petitioner_args: "Petitioner's Argument",
+  respondent_args: "Respondent's Argument",
+  law_analysis: "Analysis of the law",
+  precedent_analysis: "Precedent Analysis",
+  court_reasoning: "Court's Reasoning",
+  conclusion: "Conclusion"
+};
+
 interface TextBlock {
   type: string;
   content: string;
@@ -28,10 +39,58 @@ const JudgementAnalyser: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
   const [judgementText, setJudgementText] = useState("");
-  const [pins, setPins] = useState<{ id: string; text: string; fullText: string }[]>([]);
-  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [pins, setPins] = useState<{ id: string; text: string; fullText: string; paraKey?: string }[]>([]);
+  // paraKey = "blockIdx-lineIdx" — uniquely identifies each <p> element
+  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string; paraKey?: string; offset?: number } | null>(null);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
+  // id lets us remove individual highlights
+  const [highlights, setHighlights] = useState<{ id: string; text: string; color: string; paraKey: string; offset: number }[]>([]);
   const mainRef = useRef<HTMLDivElement>(null);
+
+  const addHighlight = (text: string, color: string, paraKey?: string, offset?: number) => {
+    if (!text || !paraKey || offset === undefined) return;
+    const id = `${Date.now()}-${Math.random()}`;
+    setHighlights(prev => [...prev, { id, text, color, paraKey, offset }]);
+    setSelectionMenu(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const removeHighlightByParaKey = (paraKey: string, offset: number) => {
+    setHighlights(prev => prev.filter(h => !(h.paraKey === paraKey && h.offset === offset)));
+    setSelectionMenu(null);
+  };
+
+  const renderTextWithHighlights = (text: string, paraKey: string) => {
+    if (!highlights.length) return text;
+
+    // Only apply highlights targeting this exact paragraph
+    const paraHighlights = highlights
+      .filter(h => h.paraKey === paraKey)
+      .sort((a, b) => a.offset - b.offset);
+
+    if (!paraHighlights.length) return text;
+
+    let result: (string | React.ReactNode)[] = [];
+    let lastIndex = 0;
+
+    paraHighlights.forEach((h) => {
+      if (h.offset > lastIndex) {
+        result.push(text.substring(lastIndex, h.offset));
+      }
+      result.push(
+        <mark key={h.id} style={{ backgroundColor: h.color, borderRadius: '2px', padding: '0 2px' }}>
+          {h.text}
+        </mark>
+      );
+      lastIndex = h.offset + h.text.length;
+    });
+
+    if (lastIndex < text.length) {
+      result.push(text.substring(lastIndex));
+    }
+
+    return result;
+  };
 
   // Fetch document details when caseId changes
   useEffect(() => {
@@ -40,26 +99,26 @@ const JudgementAnalyser: React.FC = () => {
     }
   }, [caseId]);
 
-  const navigateToPin = (id: string, fullText: string) => {
-    // Find paragraphs containing the text
-    const paragraphs = document.querySelectorAll(`.${styles.judgmentText} p, .${styles.analysisResult} p`);
-    let foundElement: HTMLElement | null = null;
-    
-    for (const el of Array.from(paragraphs) as HTMLElement[]) {
-      if (el.textContent?.includes(fullText)) {
-        foundElement = el;
-        break;
-      }
-    }
+  const navigateToPin = (id: string, fullText: string, paraKey?: string) => {
+    // If we have the exact paragraph key, navigate directly to it
+    const foundElement = paraKey
+      ? (document.querySelector(`[data-para-key="${paraKey}"]`) as HTMLElement | null)
+      : (() => {
+          // Fallback: scan all paragraphs by text content
+          for (const el of Array.from(document.querySelectorAll('[data-para-key]')) as HTMLElement[]) {
+            if (el.textContent?.includes(fullText)) return el;
+          }
+          return null;
+        })();
 
     if (foundElement) {
       foundElement.scrollIntoView({ behavior: "smooth", block: "center" });
       setActiveHighlightId(id);
-      
-      // Imperative highlight for the paragraph
+
+      // Temporarily flash-highlight the paragraph
       const highlightClass = styles.temporaryHighlight;
       foundElement.classList.add(highlightClass);
-      
+
       setTimeout(() => {
         setActiveHighlightId(null);
         foundElement?.classList.remove(highlightClass);
@@ -81,11 +140,33 @@ const JudgementAnalyser: React.FC = () => {
 
       // Ensure the selection is within the judgment section
       const container = document.querySelector(`.${styles.judgmentSection}`);
-      if (container && container.contains(range.commonAncestorContainer)) {
+      const commonAncestor = range.commonAncestorContainer;
+      
+      if (container && container.contains(commonAncestor)) {
+        // Find the exact <p> element and its unique paraKey
+        const para = commonAncestor.nodeType === 1
+          ? (commonAncestor as HTMLElement).closest('p')
+          : commonAncestor.parentElement?.closest('p');
+        const paraKeyAttr = para?.getAttribute('data-para-key');
+
+        let paraKey: string | undefined;
+        let offset: number | undefined;
+
+        if (para && paraKeyAttr != null) {
+          paraKey = paraKeyAttr;
+          // Character offset from the start of this <p>
+          const preRange = range.cloneRange();
+          preRange.selectNodeContents(para);
+          preRange.setEnd(range.startContainer, range.startOffset);
+          offset = preRange.toString().length;
+        }
+
         setSelectionMenu({
           x: rect.left + rect.width / 2,
           y: rect.top,
-          text
+          text,
+          paraKey,
+          offset
         });
       } else {
         setSelectionMenu(null);
@@ -98,10 +179,11 @@ const JudgementAnalyser: React.FC = () => {
 
   const addPin = (text: string) => {
     if (!text) return;
-    const newPin = { 
-      id: Date.now().toString(), 
+    const newPin = {
+      id: Date.now().toString(),
       text: text.length > 50 ? text.substring(0, 50) + "..." : text,
-      fullText: text 
+      fullText: text,
+      paraKey: selectionMenu?.paraKey,  // store exact paragraph location
     };
     setPins(prev => [...prev, newPin]);
     setSelectionMenu(null);
@@ -154,16 +236,7 @@ const JudgementAnalyser: React.FC = () => {
     { id: "conclusion", label: "Conclusion" },
   ];
 
-  const taskToMongoType: Record<CaseTask, string> = {
-    facts: "Fact",
-    issues: "Issue",
-    petitioner_args: "Petitioner's Argument",
-    respondent_args: "Respondent's Argument",
-    law_analysis: "Analysis of the law",
-    precedent_analysis: "Precedent Analysis",
-    court_reasoning: "Court's Reasoning",
-    conclusion: "Conclusion"
-  };
+
 
   return (
     <div className={styles.container} ref={mainRef}>
@@ -179,7 +252,7 @@ const JudgementAnalyser: React.FC = () => {
               <div 
                 key={pin.id} 
                 className={`${styles.chip} ${styles.chipPinned} ${activeHighlightId === pin.id ? styles.chipActive : ""}`}
-                onClick={() => navigateToPin(pin.id, pin.fullText)}
+                onClick={() => navigateToPin(pin.id, pin.fullText, pin.paraKey)}
                 style={{ cursor: "pointer" }}
               >
                 <span className={`${styles.materialIcon} ${styles.iconBlue} ${styles.iconFill}`}>push_pin</span>
@@ -267,23 +340,25 @@ const JudgementAnalyser: React.FC = () => {
                               const trimmed = line.trim();
                               if (!trimmed || line === '\n') return null;
 
+                              const paraKey = `${idx}-${lineIdx}`;
+
                               // Main paragraph starting with "1.", "¶ 1", etc.
                               if (/^(\d+\.|\u00b6\s*\d+)/.test(trimmed)) {
-                                return <p key={lineIdx} className={styles.para}>{line}</p>;
+                                return <p key={lineIdx} data-para-key={paraKey} className={styles.para}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
                               // List items starting with "(a)", "a.", "(i)", etc.
                               if (/^(\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/i.test(trimmed)) {
-                                return <p key={lineIdx} className={styles.listItem}>{line}</p>;
+                                return <p key={lineIdx} data-para-key={paraKey} className={styles.listItem}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
                               // Sub-list items or deeply indented lines
                               if (line.startsWith('    ') || line.startsWith('\t')) {
-                                return <p key={lineIdx} className={styles.subListItem}>{line}</p>;
+                                return <p key={lineIdx} data-para-key={paraKey} className={styles.subListItem}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
                               // Plain paragraphs
-                              return <p key={lineIdx} style={{ textIndent: '2rem' }}>{line}</p>;
+                              return <p key={lineIdx} data-para-key={paraKey} style={{ textIndent: '2rem' }}>{renderTextWithHighlights(line, paraKey)}</p>;
                             })}
                         </React.Fragment>
                       ))
@@ -349,6 +424,45 @@ const JudgementAnalyser: React.FC = () => {
             <span className={`${styles.materialIcon} ${styles.iconSmall}`}>push_pin</span>
             Add to Pins
           </button>
+          
+          <div className={styles.selectionDivider} />
+          
+          <div className={styles.colorOptions}>
+            <button 
+              className={styles.colorCircle} 
+              style={{ backgroundColor: '#fef08a' }} 
+              onClick={() => addHighlight(selectionMenu?.text, '#fef08a', selectionMenu?.paraKey, selectionMenu?.offset)}
+              title="Yellow"
+            />
+            <button 
+              className={styles.colorCircle} 
+              style={{ backgroundColor: '#bbf7d0' }} 
+              onClick={() => addHighlight(selectionMenu?.text, '#bbf7d0', selectionMenu?.paraKey, selectionMenu?.offset)}
+              title="Green"
+            />
+            <button 
+              className={styles.colorCircle} 
+              style={{ backgroundColor: '#bfdbfe' }} 
+              onClick={() => addHighlight(selectionMenu?.text, '#bfdbfe', selectionMenu?.paraKey, selectionMenu?.offset)}
+              title="Blue"
+            />
+            <button 
+              className={styles.colorCircle} 
+              style={{ backgroundColor: '#fbcfe8' }} 
+              onClick={() => addHighlight(selectionMenu?.text, '#fbcfe8', selectionMenu?.paraKey, selectionMenu?.offset)}
+              title="Pink"
+            />
+            {selectionMenu?.paraKey && selectionMenu?.offset !== undefined && highlights.some(h => h.paraKey === selectionMenu.paraKey && h.offset === selectionMenu.offset) && (
+              <button
+                className={styles.colorCircle}
+                style={{ backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={() => removeHighlightByParaKey(selectionMenu!.paraKey!, selectionMenu!.offset!)}
+                title="Remove Highlight"
+              >
+                <span className={`${styles.materialIcon}`} style={{ fontSize: '13px', color: '#64748b' }}>format_color_reset</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
