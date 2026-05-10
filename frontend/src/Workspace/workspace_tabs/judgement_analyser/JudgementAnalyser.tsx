@@ -147,10 +147,10 @@ const JudgementAnalyser: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!analysisResults[activeTask]) {
+    if (judgementText && !analysisResults[activeTask]) {
       fetchAnalysis(activeTask);
     }
-  }, [activeTask]);
+  }, [activeTask, judgementText]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
