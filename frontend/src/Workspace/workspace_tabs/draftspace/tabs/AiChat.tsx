@@ -44,7 +44,7 @@ export default function AiChat() {
       id: "welcome",
       role: "ai",
       type: "text",
-      text: "Hello! I'm your document assistant.",
+      text: "Hello! I'm your document assistant. You can ask me questions about your document, or ask me to draft a new legal document for you.",
       timestamp: new Date()
     }
   ])
@@ -88,6 +88,18 @@ export default function AiChat() {
 
     setMessages(prev => prev.filter(m => m.id !== thinkingId))
     if (!data) return
+
+    // ── PHASE 0: direct chat answer ──
+    if (data.intent === "chat_response") {
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: "ai",
+        type: "text",
+        text: data.text ?? "I'm not sure how to answer that.",
+        timestamp: new Date()
+      }])
+      return
+    }
 
     // ── PHASE 1: show template choices ──
     if (data.intent === "clarify") {

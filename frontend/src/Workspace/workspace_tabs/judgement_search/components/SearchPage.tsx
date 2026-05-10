@@ -218,7 +218,7 @@ export default function SearchPage() {
           </div>
           <div className={styles.recentGrid}>
             {RECENT_MOCK.map((c) => {
-              const isPinned = pinnedCases.includes(c.id);
+              const isPinned = pinnedCases.some(p => p.id === c.id);
               return (
                 <div
                   key={c.id}
@@ -238,7 +238,15 @@ export default function SearchPage() {
                     </span>
                     <button
                       className={`${styles.pinBtn} ${isPinned ? styles.pinned : ""}`}
-                      onClick={(e) => { e.stopPropagation(); togglePin(c.id); }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        togglePin({
+                          id: c.id,
+                          title: c.title,
+                          court: c.courtLabel,
+                          year: parseInt(c.date.slice(-4)) || new Date().getFullYear()
+                        }); 
+                      }}
                       title={isPinned ? "Unpin" : "Pin"}
                     >
                       <span className="material-symbols-outlined">keep</span>

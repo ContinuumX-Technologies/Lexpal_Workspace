@@ -105,6 +105,13 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
       }
 
       /**
+       * ✅ CHAT RESPONSE (Q&A)
+       */
+      if (data.intent === "chat_response") {
+        return data
+      }
+
+      /**
        * ✅ CLARIFICATION FLOW
        */
       if (data.intent === "clarify") {

@@ -1,4 +1,4 @@
-import { JDSearchProvider, useJDSearch } from "./JDSearch.context";
+import {useJDSearch } from "./JDSearch.context";
 import SearchPage from "./components/SearchPage";
 import ResultsPage from "./components/ResultsPage"
 
