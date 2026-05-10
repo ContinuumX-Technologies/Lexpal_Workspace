@@ -459,11 +459,16 @@ export default function ResultsPage() {
                     key={item.judgement_db_id}
                     item={item}
                     active={selectedCase?.id === item.judgement_db_id}
-                    pinned={pinnedCases.includes(item.judgement_db_id)}
+                    pinned={pinnedCases.some((p) => p.id === item.judgement_db_id)}
                     onSelect={() => selectJudgment(item)}
                     onPin={(e) => {
                       e.stopPropagation();
-                      togglePin(item.judgement_db_id);
+                      togglePin({
+                        id: item.judgement_db_id,
+                        title: item.short_hand_title,
+                        court: item.judgement_type,
+                        year: item.year
+                      });
                     }}
                   />
                 ))}
@@ -500,8 +505,13 @@ export default function ResultsPage() {
           ) : selectedCase ? (
             <CasePreview
               c={selectedCase}
-              pinned={pinnedCases.includes(selectedCase.id)}
-              onPin={() => togglePin(selectedCase.id)}
+              pinned={pinnedCases.some((p) => p.id === selectedCase.id)}
+              onPin={() => togglePin({
+                id: selectedCase.id,
+                title: selectedCase.shortTitle || selectedCase.title,
+                court: selectedCase.court,
+                year: selectedCase.year
+              })}
               onViewFull={handleViewFull}
             />
           ) : (

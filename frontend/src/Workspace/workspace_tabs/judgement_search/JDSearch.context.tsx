@@ -44,6 +44,13 @@ interface SearchApiResponse {
   hasMore: boolean;
 }
 
+export interface PinnedCase {
+  id: string;
+  title: string;
+  court: string;
+  year: number;
+}
+
 // ─── Context value ─────────────────────────────────────────────────────────────
 interface JDSearchContextValue {
   appState: AppState;
@@ -52,7 +59,7 @@ interface JDSearchContextValue {
   hasMore: boolean;
   selectedCase: CaseResult | null;
   previewLoading: boolean;
-  pinnedCases: string[];
+  pinnedCases: PinnedCase[];
   
   // filters
   jurisdiction: string;
@@ -70,7 +77,7 @@ interface JDSearchContextValue {
   refineSearch: (query: string) => void;
   loadMore: () => void;
   selectJudgment: (item: JudgmentListItem) => void;
-  togglePin: (id: string) => void;
+  togglePin: (item: PinnedCase) => void;
 }
 
 const JDSearchContext = createContext<JDSearchContextValue | null>(null);
@@ -187,7 +194,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
   const [seenIds, setSeenIds] = useState<string[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [pinnedCases, setPinnedCases] = useState<string[]>([]);
+  const [pinnedCases, setPinnedCases] = useState<PinnedCase[]>([]);
   const { caseId } = useParams<{ caseId: string }>();
 
   const [jurisdiction, setJurisdiction] = useState<string>("");
@@ -303,9 +310,11 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
   }, [navigate]);
 
   // ── Toggle pin ──────────────────────────────────────────────────────────────
-  const togglePin = useCallback((id: string) => {
+  const togglePin = useCallback((caseItem: PinnedCase) => {
     setPinnedCases((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+      prev.some((p) => p.id === caseItem.id) 
+        ? prev.filter((p) => p.id !== caseItem.id) 
+        : [...prev, caseItem]
     );
   }, []);
 

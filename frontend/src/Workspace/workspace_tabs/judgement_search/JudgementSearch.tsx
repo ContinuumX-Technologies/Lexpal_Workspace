@@ -16,9 +16,5 @@ function AppRouter() {
 }
 
 export default function App() {
-  return (
-    <JDSearchProvider>
-      <AppRouter />
-    </JDSearchProvider>
-  );
+  return <AppRouter />;
 }
