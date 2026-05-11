@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
+import LoadingLines from "@/components/ui/loading-lines";
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 type TaskType = CaseTask | "full";
@@ -379,7 +380,7 @@ const JudgementAnalyser: React.FC = () => {
           <div className={styles.judgmentContent}>
             {loading && activeTask === "full" && (
               <div className={styles.loadingContainer}>
-                <p>Loading judgement...</p>
+                <LoadingLines />
               </div>
             )}
 

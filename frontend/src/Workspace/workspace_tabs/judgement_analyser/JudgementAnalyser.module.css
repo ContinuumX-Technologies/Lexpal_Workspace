@@ -966,3 +966,13 @@
 .gutterArrow span {
   font-size: 18px;
 }
+
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 0;
+  width: 100%;
+  min-height: 300px;
+}
