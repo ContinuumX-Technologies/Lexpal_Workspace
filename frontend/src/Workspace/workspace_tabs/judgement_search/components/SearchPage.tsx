@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import styles from "./SearchPage.module.css";
 import { useJDSearch } from "../JDSearch.context";
+import LoadingLines from "@/components/ui/loading-lines";
 
 const SUGGESTED = [
   "Unilateral appointment of arbitrator",
@@ -70,7 +71,7 @@ export default function SearchPage() {
 
       {isLoading && (
         <div className={styles.loadingOverlay}>
-          <div className={styles.spinnerRing} />
+          <LoadingLines />
           <p className={styles.loadingText}>Searching case law…</p>
           <p className={styles.loadingSubtext}>Analyzing judgments with AI</p>
         </div>
@@ -211,7 +212,7 @@ export default function SearchPage() {
         <div className={styles.recentSection}>
           <div className={styles.recentHeader}>
             <h3 className={styles.recentTitle}>
-              <span className={`material-symbols-outlined ${styles.recentTitleIcon}`}>keep</span>
+              <span className={`material-symbols-outlined ${styles.recentTitleIcon}`}>push_pin</span>
               Recent &amp; Pinned
             </h3>
             <button className={styles.viewAll}>View all activity</button>
@@ -249,7 +250,7 @@ export default function SearchPage() {
                       }}
                       title={isPinned ? "Unpin" : "Pin"}
                     >
-                      <span className="material-symbols-outlined">keep</span>
+                      <span className="material-symbols-outlined">push_pin</span>
                     </button>
                   </div>
                   <p className={styles.recentCardTitle}>{c.title}</p>

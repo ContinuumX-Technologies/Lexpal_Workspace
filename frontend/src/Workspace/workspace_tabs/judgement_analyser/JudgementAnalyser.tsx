@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
 import LoadingLines from "@/components/ui/loading-lines";
+import { useAnalysisStore } from "./store/analysisStore";
+import type { Highlight, Pin } from "./store/analysisStore";
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 type TaskType = CaseTask | "full";
@@ -23,14 +25,6 @@ interface TextBlock {
   content: string;
 }
 
-interface Highlight {
-  id: string;
-  text: string;
-  color: string;
-  paraKey: string;
-  offset: number;
-}
-
 interface CaseDoc {
   _id: string;
   title: string;
@@ -48,12 +42,14 @@ const JudgementAnalyser: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
   const [judgementText, setJudgementText] = useState("");
-  const [pins, setPins] = useState<{ id: string; text: string; fullText: string; paraKey?: string }[]>([]);
-  // paraKey = "blockIdx-lineIdx" — uniquely identifies each <p> element
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string; paraKey?: string; offset?: number } | null>(null);
+
+  const { updateCase, cases } = useAnalysisStore();
+  const currentCase = cases[caseId || ""] || { highlights: [], pins: [], messages: [] };
+  const highlights = currentCase.highlights;
+  const pins = currentCase.pins;
+
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
-  // id lets us remove individual highlights
-  const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [currentHighlightIndices, setCurrentHighlightIndices] = useState<Record<string, number>>({});
   const mainRef = useRef<HTMLDivElement>(null);
 
@@ -139,7 +135,7 @@ const JudgementAnalyser: React.FC = () => {
     });
 
     if (newHighlights.length > 0) {
-      setHighlights(prev => [...prev, ...newHighlights]);
+      updateCase(caseId || "", { highlights: [...highlights, ...newHighlights] });
     }
     
     setSelectionMenu(null);
@@ -147,7 +143,9 @@ const JudgementAnalyser: React.FC = () => {
   };
 
   const removeHighlightByParaKey = (paraKey: string, offset: number) => {
-    setHighlights(prev => prev.filter(h => !(h.paraKey === paraKey && h.offset === offset)));
+    updateCase(caseId || "", { 
+      highlights: highlights.filter(h => !(h.paraKey === paraKey && h.offset === offset)) 
+    });
     setSelectionMenu(null);
   };
 
@@ -267,19 +265,19 @@ const JudgementAnalyser: React.FC = () => {
 
   const addPin = (text: string) => {
     if (!text) return;
-    const newPin = {
+    const newPin: Pin = {
       id: Date.now().toString(),
       text: text.length > 50 ? text.substring(0, 50) + "..." : text,
       fullText: text,
       paraKey: selectionMenu?.paraKey,  // store exact paragraph location
     };
-    setPins(prev => [...prev, newPin]);
+    updateCase(caseId || "", { pins: [...pins, newPin] });
     setSelectionMenu(null);
     window.getSelection()?.removeAllRanges();
   };
 
   const removePin = (id: string) => {
-    setPins(prev => prev.filter(p => p.id !== id));
+    updateCase(caseId || "", { pins: pins.filter(p => p.id !== id) });
   };
 
   const fetchCaseDetails = async (id: string) => {
@@ -383,6 +381,7 @@ const JudgementAnalyser: React.FC = () => {
                 <LoadingLines />
               </div>
             )}
+
 
             <div style={{ height: '2rem' }} />
 
@@ -501,7 +500,7 @@ const JudgementAnalyser: React.FC = () => {
           <div className={styles.chatHeader}>
             <span className={styles.chatTitle}>LEXPAL AI</span>
           </div>
-          <JudgementAiChat judgementText={judgementText} />
+          <JudgementAiChat caseId={caseId || ""} judgementText={judgementText} />
         </aside>
       </main>
 
