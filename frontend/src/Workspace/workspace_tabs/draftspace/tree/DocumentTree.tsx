@@ -6,9 +6,11 @@ import TreeNode from "./TreeNode";
 import styles from "./DocumentTree.module.css";
 import { findPosByBlockId } from "../utils/nodeLookup";
 
-export default function DocumentTree() {
+import { useDraftStore } from "../store/draftStore";
 
-  const blockTree = useDocumentStore(state => state.blockTree);
+export default function DocumentTree() {
+  const draftId = "default-draft";
+  const blockTree = useDraftStore(state => state.drafts[draftId]?.blockTree);
   const activeBlockId = useDocumentStore(state => state.activeBlockId);
   const editor = useDocumentStore(state => state.editor);
 

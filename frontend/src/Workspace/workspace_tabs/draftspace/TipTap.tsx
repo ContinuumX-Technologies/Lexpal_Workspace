@@ -12,8 +12,11 @@ import { PageBreak } from './PageBreakExtension'
 import { FontSize } from './FontSizeExtension'
 import { OrderedListStyled } from './OrderedListStyled'
 import { BlockId } from './editor/blockIdPlugin'
+import { blockTreeToProseMirror } from './editor/blockToProseMirror'
+import { proseMirrorToBlocks } from './editor/proseMirrorToBlocks'
 
 import { useDocumentStore } from './store/documentStore'
+import { useDraftStore } from './store/draftStore'
 import { useDraftspace } from './Draftspace.context'
 
 import { useEffect } from 'react'
@@ -33,6 +36,9 @@ const Tiptap = () => {
   // Page width (A4 at 96dpi)
   const PAGE_WIDTH = 794 // px
 
+  const blockTree = useDraftStore(state => state.drafts["default-draft"]?.blockTree ?? null);
+  const updateDraft = useDraftStore(state => state.updateDraft);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ orderedList: false }),
@@ -51,9 +57,15 @@ const Tiptap = () => {
       BlockId,
     ],
 
-    content: '<p>Hello World!</p>',
+    content: blockTree ? blockTreeToProseMirror(blockTree) : '<p>Hello World!</p>',
 
-   
+    onUpdate: ({ editor }) => {
+      const json = editor.getJSON() as any;
+      const newTree = proseMirrorToBlocks(json);
+      
+      // Update the persistent store
+      updateDraft("default-draft", { blockTree: newTree });
+    },
 
     onSelectionUpdate: ({ editor }) => {
       const { $from } = editor.state.selection

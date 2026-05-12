@@ -27,9 +27,12 @@ function extractPlaceholders(text: string): string[] {
   return Array.from(found)
 }
 
-export default function Placeholders() {
+import { useDraftStore } from "../store/draftStore"
 
-  const setBlockTree = useDocumentStore(state => state.setBlockTree)
+export default function Placeholders() {
+  const draftId = "default-draft";
+  const { updateDraft } = useDraftStore();
+  const setBlockTree = (tree: BlockNode) => updateDraft(draftId, { blockTree: tree });
   const editor = useDocumentStore(state => state.editor)
 
   const [entries, setEntries] = useState<PlaceholderEntry[]>([])

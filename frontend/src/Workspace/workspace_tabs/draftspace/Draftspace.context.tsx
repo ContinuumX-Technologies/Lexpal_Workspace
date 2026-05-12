@@ -23,22 +23,31 @@ interface DraftspaceContextType {
 }
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_MARGINS: Margins = { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 };
 const DraftspaceContext = createContext<DraftspaceContextType | null>(null)
 
+import { useDraftStore } from "./store/draftStore"
+
 export function DraftspaceProvider({ children }: { children: React.ReactNode }) {
+  const draftId = "default-draft";
+  const { updateDraft, drafts } = useDraftStore();
+  const currentDraft = drafts[draftId] || { 
+    margins: { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 },
+    activeTab: "format-builder",
+    blockTree: null
+  };
 
   const editor = useDocumentStore(state => state.editor)
-  const blockTree = useDocumentStore(state => state.blockTree)
-  const setBlockTree = useDocumentStore(state => state.setBlockTree)
+  const blockTree = currentDraft.blockTree as BlockNode | null;
+  const setBlockTree = (tree: BlockNode) => updateDraft(draftId, { blockTree: tree });
 
   const [loading, setLoading] = useState(false)
-   const [activeTab, setActiveTab] = useState<RightPanelTab>("format-builder");
-    const [margins, setMarginsState] = useState<Margins>(DEFAULT_MARGINS);
-   
+  
+  const activeTab = currentDraft.activeTab as RightPanelTab;
+  const setActiveTab = (tab: RightPanelTab) => updateDraft(draftId, { activeTab: tab });
 
-    const setMargins = (m: Partial<Margins>) =>
-        setMarginsState(prev => ({ ...prev, ...m }));
+  const margins = currentDraft.margins;
+  const setMargins = (m: Partial<Margins>) => 
+    updateDraft(draftId, { margins: { ...margins, ...m } });
 
   const sendAIMessage = async (message: string, history: ChatHistoryItem[], templateChoice: string|null) => {
 

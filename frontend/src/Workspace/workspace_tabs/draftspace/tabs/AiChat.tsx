@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useRef, useEffect } from "react"
 import { useDraftspace } from "../Draftspace.context"
 import { PromptInputBox } from "@/components/ui/ai-prompt-box"
 import {
@@ -8,46 +8,26 @@ import {
 } from "@/components/ui/chat-bubble"
 import { TextShimmerWave } from "@/components/ui/text-shimmer-wave"
 
-type MessageRole = "user" | "ai"
-
-type MessageType =
-  | "text"
-  | "thinking"
-  | "choices"
-  | "task_complete"
-
-interface Choice {
-  label: string
-  value: string
-}
-
-interface Message {
-  id: string
-  role: MessageRole
-  type: MessageType
-  text?: string
-  choices?: Choice[]
-  timestamp: Date
-}
+import { useDraftStore } from "../store/draftStore"
+import type { Message as StoreMessage, Choice } from "../store/draftStore"
 
 export interface ChatHistoryItem {
   role: "user" | "assistant"
   content: string
 }
 
+
 export default function AiChat() {
+  const draftId = "default-draft";
+  const { updateDraft, drafts } = useDraftStore();
+  const messages = (drafts[draftId]?.messages || []) as StoreMessage[];
+
+  const setMessages = (updater: StoreMessage[] | ((prev: StoreMessage[]) => StoreMessage[])) => {
+    const nextMessages = typeof updater === "function" ? updater(messages) : updater;
+    updateDraft(draftId, { messages: nextMessages });
+  };
 
   const { sendAIMessage, loading } = useDraftspace()
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "ai",
-      type: "text",
-      text: "Hello! I'm your document assistant. You can ask me questions about your document, or ask me to draft a new legal document for you.",
-      timestamp: new Date()
-    }
-  ])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -80,7 +60,7 @@ export default function AiChat() {
       id: thinkingId,
       role: "ai",
       type: "thinking",
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     }])
 
     const history = buildHistory()
@@ -96,7 +76,7 @@ export default function AiChat() {
         role: "ai",
         type: "text",
         text: data.text ?? "I'm not sure how to answer that.",
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       }])
       return
     }
@@ -112,7 +92,7 @@ export default function AiChat() {
           label: d,
           value: d
         })),
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       }])
       return
     }
@@ -124,7 +104,7 @@ export default function AiChat() {
         role: "ai",
         type: "task_complete",
         text: `Draft created: ${data.template_name}`,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       }])
       return
     }
@@ -138,12 +118,12 @@ export default function AiChat() {
     const trimmed = message.trim()
     if (!trimmed) return
 
-    const userMessage: Message = {
+    const userMessage: StoreMessage = {
       id: crypto.randomUUID(),
       role: "user",
       type: "text",
       text: trimmed,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -156,12 +136,12 @@ export default function AiChat() {
    */
   const handleChoice = async (choice: Choice) => {
 
-    const userMessage: Message = {
+    const userMessage: StoreMessage = {
       id: crypto.randomUUID(),
       role: "user",
       type: "text",
       text: choice.label,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -169,8 +149,8 @@ export default function AiChat() {
     await handleAIResponse(choice.label, choice.value)
   }
 
-  const formatTime = (date: Date) =>
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const formatTime = (dateStr: string) =>
+    new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", backgroundColor: "#fcfcfc" }}>
