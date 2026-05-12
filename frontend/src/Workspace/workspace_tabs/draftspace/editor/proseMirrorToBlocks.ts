@@ -8,6 +8,12 @@ function pmTextToSpan(node: PMNode): Span {
             if (mark.type === "bold") span.bold = true;
             if (mark.type === "italic") span.italic = true;
             if (mark.type === "underline") span.underline = true;
+            if (mark.type === "highlight" && mark.attrs?.color) span.highlight = mark.attrs.color;
+            if (mark.type === "textStyle" && mark.attrs) {
+                if (mark.attrs.color) span.color = mark.attrs.color;
+                if (mark.attrs.fontFamily) span.fontFamily = mark.attrs.fontFamily;
+                if (mark.attrs.fontSize) span.fontSize = mark.attrs.fontSize;
+            }
         });
     }
     return span;
@@ -47,11 +53,13 @@ export function proseMirrorToBlocks(pmDoc: PMNode): BlockNode {
                 const targetList = currentSection ? currentSection.children! : parentList;
 
                 const content = node.content?.map(pmTextToSpan) || [];
+                const align = node.attrs?.textAlign || "left";
 
                 targetList.push({
                     id,
                     type: "paragraph",
                     content,
+                    meta: { align },
                 });
                 break;
             }
@@ -88,6 +96,58 @@ export function proseMirrorToBlocks(pmDoc: PMNode): BlockNode {
                         targetList.push(clauseBlock);
                     });
                 }
+                break;
+            }
+
+            case "table": {
+                const id = node.attrs?.blockId || `table-${crypto.randomUUID()}`;
+                const targetList = currentSection ? currentSection.children! : parentList;
+                const tableBlock: BlockNode = { id, type: "table", children: [] };
+                if (node.content) {
+                    node.content.forEach(row => processNode(row, tableBlock.children!));
+                }
+                targetList.push(tableBlock);
+                break;
+            }
+
+            case "tableRow": {
+                const id = node.attrs?.blockId || `row-${crypto.randomUUID()}`;
+                const rowBlock: BlockNode = { id, type: "tableRow", children: [] };
+                if (node.content) {
+                    node.content.forEach(cell => processNode(cell, rowBlock.children!));
+                }
+                parentList.push(rowBlock);
+                break;
+            }
+
+            case "tableCell":
+            case "tableHeader": {
+                const id = node.attrs?.blockId || `cell-${crypto.randomUUID()}`;
+                const cellBlock: BlockNode = { 
+                    id, 
+                    type: "tableCell", 
+                    children: [],
+                    meta: { 
+                        colspan: node.attrs?.colspan || 1, 
+                        rowspan: node.attrs?.rowspan || 1,
+                        isHeader: node.type === "tableHeader"
+                    }
+                };
+                if (node.content) {
+                    node.content.forEach(child => processNode(child, cellBlock.children!));
+                }
+                parentList.push(cellBlock);
+                break;
+            }
+
+            case "image": {
+                const id = node.attrs?.blockId || `img-${crypto.randomUUID()}`;
+                const targetList = currentSection ? currentSection.children! : parentList;
+                targetList.push({
+                    id,
+                    type: "image",
+                    meta: { src: node.attrs?.src, alt: node.attrs?.alt, title: node.attrs?.title },
+                });
                 break;
             }
 

@@ -2,6 +2,10 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
+import Color from '@tiptap/extension-color'
+import Image from '@tiptap/extension-image'
+import Underline from '@tiptap/extension-underline'
+import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
@@ -27,7 +31,7 @@ import './EditorBlockHighlight.css'
 
 const Tiptap = () => {
 
-  const { margins } = useDraftspace()
+  const { margins, typography } = useDraftspace()
 
   const setEditor = useDocumentStore(state => state.setEditor)
   
@@ -50,6 +54,14 @@ const Tiptap = () => {
       TextStyle,
       FontFamily,
       FontSize,
+      Color,
+      Highlight.configure({
+        multicolor: true,
+      }),
+      Underline,
+      Image.configure({
+        inline: true,
+      }),
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
@@ -107,6 +119,9 @@ const Tiptap = () => {
     '--margin-bottom': mmToPx(margins.bottom),
     '--margin-left': mmToPx(margins.left),
     '--margin-right': mmToPx(margins.right),
+    '--font-family': typography?.fontFamily || 'Inter, sans-serif',
+    '--font-size': `${typography?.fontSize || 14}px`,
+    '--line-height': typography?.lineHeight || 1.6,
     '--page-width': `${PAGE_WIDTH}px`,
   } as CSSProperties
 

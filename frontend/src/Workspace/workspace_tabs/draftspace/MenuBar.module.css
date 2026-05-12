@@ -236,6 +236,23 @@
   opacity: 1;
 }
 
+.importWrapper {
+  position: relative;
+  display: flex;
+}
+
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.05); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 0.6; }
+}
+
 /* Custom scrollbar for selects if they overflow */
 .select::-webkit-scrollbar {
   width: 4px;

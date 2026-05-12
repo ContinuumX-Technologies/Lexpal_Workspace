@@ -27,6 +27,11 @@ interface DraftState {
   blockTree: BlockNode | null;
   messages: Message[];
   margins: Margins;
+  typography: {
+    fontFamily: string;
+    fontSize: number;
+    lineHeight: number;
+  };
   activeTab: string;
 }
 
@@ -40,7 +45,7 @@ interface DraftStore {
 
 const DEFAULT_MARGINS: Margins = { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 };
 
-const DEFAULT_DRAFT_STATE: DraftState = {
+export const DEFAULT_DRAFT_STATE: DraftState = {
   blockTree: null,
   messages: [
     {
@@ -52,6 +57,11 @@ const DEFAULT_DRAFT_STATE: DraftState = {
     }
   ],
   margins: DEFAULT_MARGINS,
+  typography: {
+    fontFamily: 'Inter, sans-serif',
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
   activeTab: "format-builder",
 };
 

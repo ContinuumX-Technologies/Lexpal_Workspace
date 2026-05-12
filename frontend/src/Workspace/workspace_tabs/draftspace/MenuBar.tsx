@@ -18,6 +18,7 @@ import {
   Maximize2,
   Download,
   ChevronDown,
+  FileUp,
 } from 'lucide-react';
 import { exportToPDF, exportToDocx, exportToTxt, exportToHtml } from './utils/exportUtils';
 
@@ -25,6 +26,48 @@ export default function MenuBar({ editor }: { editor: any }) {
   const { margins, setMargins } = useDraftspace();
   const [showMargins, setShowMargins] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleImportDocx = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.docx')) {
+      alert("Please upload a .docx file only.");
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/import-docx`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Import failed");
+
+      const data = await response.json();
+      
+      // Set content to editor
+      // mammoth converts docx to clean HTML, which TipTap understands perfectly
+      editor.commands.setContent(data.html);
+      
+      if (data.warnings && data.warnings.length > 0) {
+        console.warn("Import Warnings:", data.warnings);
+      }
+
+    } catch (error) {
+      console.error("Import error:", error);
+      alert("Failed to import Word document.");
+    } finally {
+      setIsImporting(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
 
   if (!editor) return null;
 
@@ -225,6 +268,28 @@ export default function MenuBar({ editor }: { editor: any }) {
               </div>
             </div>
           )}
+        </div>
+
+        <div className={styles.divider} />
+
+        {/* Import Button */}
+        <div className={styles.importWrapper}>
+          <input
+            type="file"
+            id="docx-import-input"
+            accept=".docx"
+            style={{ display: 'none' }}
+            onChange={handleImportDocx}
+          />
+          <button
+            className={`${styles.iconButton} ${isImporting ? styles.loading : ''}`}
+            title="Import Word Document (.docx)"
+            onClick={() => document.getElementById('docx-import-input')?.click()}
+            disabled={isImporting}
+          >
+            <FileUp size={16} />
+            <span className={styles.exportText}>{isImporting ? 'Importing...' : 'Open'}</span>
+          </button>
         </div>
 
         <div className={styles.divider} />

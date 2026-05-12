@@ -21,21 +21,27 @@ interface DraftspaceContextType {
     setActiveTab: (tab: RightPanelTab) => void;
     margins: Margins;
     setMargins: (m: Partial<Margins>) => void;
+    typography: { fontFamily: string; fontSize: number; lineHeight: number };
+    setTypography: (t: Partial<{ fontFamily: string; fontSize: number; lineHeight: number }>) => void;
 }
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const DraftspaceContext = createContext<DraftspaceContextType | null>(null)
 
-import { useDraftStore } from "./store/draftStore"
+import { useDraftStore, DEFAULT_DRAFT_STATE } from "./store/draftStore"
 
 export function DraftspaceProvider({ children }: { children: React.ReactNode }) {
   const draftId = "default-draft";
   const { updateDraft, drafts } = useDraftStore();
   const { addUsage } = useUsageStore();
-  const currentDraft = drafts[draftId] || { 
-    margins: { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 },
-    activeTab: "format-builder",
-    blockTree: null
+  const rawDraft = drafts[draftId] || DEFAULT_DRAFT_STATE;
+  
+  // Deep merge to handle cases where localStorage has old data missing new fields
+  const currentDraft = {
+    ...DEFAULT_DRAFT_STATE,
+    ...rawDraft,
+    margins: { ...DEFAULT_DRAFT_STATE.margins, ...rawDraft.margins },
+    typography: { ...DEFAULT_DRAFT_STATE.typography, ...rawDraft.typography },
   };
 
   const editor = useDocumentStore(state => state.editor)
@@ -50,6 +56,10 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
   const margins = currentDraft.margins;
   const setMargins = (m: Partial<Margins>) => 
     updateDraft(draftId, { margins: { ...margins, ...m } });
+
+  const typography = currentDraft.typography;
+  const setTypography = (t: Partial<{ fontFamily: string; fontSize: number; lineHeight: number }>) =>
+    updateDraft(draftId, { typography: { ...typography, ...t } });
 
   const sendAIMessage = async (message: string, history: ChatHistoryItem[], templateChoice: string|null) => {
 
@@ -149,8 +159,10 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
         loading,
          activeTab,
                 setActiveTab,
-                margins,
-                setMargins
+                 margins,
+                 setMargins,
+                 typography,
+                 setTypography
       }}
     >
       {children}

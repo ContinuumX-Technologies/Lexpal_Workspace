@@ -60,10 +60,10 @@
   outline: none;
   width: 100%;
   min-height: calc(var(--page-height, 1123px) - var(--margin-top, 96px) - var(--margin-bottom, 96px));
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: var(--font-size, 16px);
+  line-height: var(--line-height, 1.6);
   color: #1a1a1a;
-  font-family: 'Times New Roman', Times, serif;
+  font-family: var(--font-family, 'Inter', sans-serif);
   overflow-wrap: break-word;
 }
 .editorSurface :global(.tiptap p) {
@@ -128,4 +128,26 @@
 .editorSurface :global(.tiptap th) {
   background: #f5f5f5;
   font-weight: 600;
+}
+.editorSurface :global(.tiptap .text-center) {
+  text-align: center;
+}
+.editorSurface :global(.tiptap .text-right) {
+  text-align: right;
+}
+.editorSurface :global(.tiptap .text-justify) {
+  text-align: justify;
+}
+.editorSurface :global(.tiptap .indent-1) {
+  margin-left: 36pt;
+}
+.editorSurface :global(.tiptap .section-title) {
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  margin-top: 24pt;
+  margin-bottom: 12pt;
+}
+.editorSurface :global(.tiptap .clause) {
+  margin-bottom: 12pt;
 }

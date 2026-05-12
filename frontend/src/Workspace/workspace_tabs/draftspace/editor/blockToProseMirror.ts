@@ -6,7 +6,7 @@ export type PMNode = {
   attrs?: Record<string, any>;
   content?: PMNode[];
   text?: string;
-  marks?: { type: string }[];
+  marks?: { type: string; attrs?: Record<string, any> }[];
 };
 
 /**
@@ -22,6 +22,18 @@ function spanToPM(span: any): PMNode | null {
   if (span.bold) marks.push({ type: "bold" });
   if (span.italic) marks.push({ type: "italic" });
   if (span.underline) marks.push({ type: "underline" });
+  if (span.highlight) marks.push({ type: "highlight", attrs: { color: span.highlight } });
+  
+  if (span.color || span.fontFamily || span.fontSize) {
+      marks.push({
+          type: "textStyle",
+          attrs: {
+              ...(span.color && { color: span.color }),
+              ...(span.fontFamily && { fontFamily: span.fontFamily }),
+              ...(span.fontSize && { fontSize: span.fontSize }),
+          }
+      });
+  }
 
   const node: PMNode = {
     type: "text",
@@ -176,6 +188,62 @@ function convertBlock(block: BlockNode): PMNode[] {
         });
       }
 
+      break;
+    }
+
+    case "table": {
+      const tableContent: PMNode[] = [];
+      if (block.children) {
+        block.children.forEach(child => tableContent.push(...convertBlock(child)));
+      }
+      result.push({
+        type: "table",
+        attrs: { blockId: block.id },
+        content: tableContent,
+      });
+      break;
+    }
+
+    case "tableRow": {
+      const rowContent: PMNode[] = [];
+      if (block.children) {
+        block.children.forEach(child => rowContent.push(...convertBlock(child)));
+      }
+      result.push({
+        type: "tableRow",
+        attrs: { blockId: block.id },
+        content: rowContent,
+      });
+      break;
+    }
+
+    case "tableCell": {
+      const cellContent: PMNode[] = [];
+      if (block.children) {
+        block.children.forEach(child => cellContent.push(...convertBlock(child)));
+      }
+      result.push({
+        type: block.meta?.isHeader ? "tableHeader" : "tableCell",
+        attrs: { 
+          blockId: block.id,
+          colspan: block.meta?.colspan || 1,
+          rowspan: block.meta?.rowspan || 1,
+        },
+        content: cellContent.length > 0 ? cellContent : [{ type: "paragraph", content: [] }],
+      });
+      break;
+    }
+
+    case "image": {
+      result.push({
+        type: "image",
+        attrs: {
+          blockId: block.id,
+          src: block.meta?.src,
+          alt: block.meta?.alt,
+          title: block.meta?.title,
+        }
+      });
       break;
     }
   }
