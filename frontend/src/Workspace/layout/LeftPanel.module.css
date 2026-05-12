@@ -2,12 +2,12 @@
   width: 0;
   min-width: 0;
   height: 100%;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-right: 1px solid #e5e7eb;
+  background: rgba(10, 10, 12, 0.98);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
 
-  transition: width 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
 
@@ -23,22 +23,24 @@
 }
 
 .content h3 {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: #111827;
-  margin: 0 0 12px 0;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 16px 0;
 }
 
 .content p {
   font-size: 14px;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.3);
   margin: 0;
 }
 
 .pinnedList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   margin-top: 16px;
 }
 
@@ -47,23 +49,30 @@
   align-items: flex-start;
   justify-content: space-between;
   padding: 12px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
   gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.pinnedItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
 }
 
 .pinnedItemMain {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .pinnedItemTitle {
   font-size: 13px !important;
   font-weight: 500;
-  color: #111827 !important;
-  line-height: 1.4 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  line-height: 1.5 !important;
 }
 
 .pinnedItemMeta {
@@ -71,11 +80,12 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .pinnedItemCourt {
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 500;
@@ -84,19 +94,19 @@
 .unpinBtn {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: rgba(255, 255, 255, 0.2);
   cursor: pointer;
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: all 0.2s;
 }
 
 .unpinBtn:hover {
   color: #ef4444;
-  background: #fee2e2;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .unpinBtn span {

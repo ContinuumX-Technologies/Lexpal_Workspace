@@ -8,6 +8,7 @@ import {
 import { TextShimmerWave } from "@/components/ui/text-shimmer-wave";
 import { useAnalysisStore } from "./store/analysisStore";
 import type { Message } from "./store/analysisStore";
+import { useUsageStore, estimateTokens } from "@/store/usageStore";
 
 interface ChatHistoryItem {
   role: "user" | "assistant";
@@ -29,6 +30,7 @@ const WELCOME_MESSAGE: Message = {
 
 export default function JudgementAiChat({ caseId, judgementText }: Props) {
   const { updateCase, getMessages } = useAnalysisStore();
+  const { addUsage } = useUsageStore();
   const storedMessages = getMessages(caseId);
 
   const [loading, setLoading] = useState(false);
@@ -108,6 +110,10 @@ export default function JudgementAiChat({ caseId, judgementText }: Props) {
           timestamp: new Date().toISOString(),
         };
         updateCase(caseId, { messages: [...afterSnapshot, aiMsg] });
+
+        // Update Token Usage in Realtime
+        const usage = estimateTokens(trimmed) + estimateTokens(data.result);
+        addUsage(usage);
       } else {
         updateCase(caseId, { messages: afterSnapshot });
       }

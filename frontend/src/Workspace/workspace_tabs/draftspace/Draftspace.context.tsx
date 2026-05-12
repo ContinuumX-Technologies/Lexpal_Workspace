@@ -4,6 +4,7 @@ import { blockTreeToProseMirror } from "./editor/blockToProseMirror"
 import type { BlockNode, Span } from "./store/documentTypes"
 export type RightPanelTab = "ai-chat" | "placeholders" | "format-builder";
 import type { ChatHistoryItem } from "./tabs/AiChat"
+import { useUsageStore, estimateTokens } from "@/store/usageStore"
 
 
 export interface Margins {
@@ -30,6 +31,7 @@ import { useDraftStore } from "./store/draftStore"
 export function DraftspaceProvider({ children }: { children: React.ReactNode }) {
   const draftId = "default-draft";
   const { updateDraft, drafts } = useDraftStore();
+  const { addUsage } = useUsageStore();
   const currentDraft = drafts[draftId] || { 
     margins: { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 },
     activeTab: "format-builder",
@@ -70,6 +72,12 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
       })
 
       const data = await response.json()
+
+      // Track usage
+      const queryUsage = estimateTokens(message);
+      const dataStr = JSON.stringify(data);
+      const responseUsage = estimateTokens(dataStr);
+      addUsage(queryUsage + responseUsage);
 
       /**
        * ✅ CREATE NEW DOCUMENT

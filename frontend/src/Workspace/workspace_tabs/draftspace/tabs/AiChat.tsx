@@ -23,7 +23,9 @@ export default function AiChat() {
   const messages = (drafts[draftId]?.messages || []) as StoreMessage[];
 
   const setMessages = (updater: StoreMessage[] | ((prev: StoreMessage[]) => StoreMessage[])) => {
-    const nextMessages = typeof updater === "function" ? updater(messages) : updater;
+    // Use getState() to ensure we have the most recent messages, avoiding race conditions
+    const currentMessages = useDraftStore.getState().drafts[draftId]?.messages || [];
+    const nextMessages = typeof updater === "function" ? updater(currentMessages) : updater;
     updateDraft(draftId, { messages: nextMessages });
   };
 
