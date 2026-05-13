@@ -18,7 +18,7 @@ export interface ChatHistoryItem {
 
 
 export default function AiChat() {
-  const draftId = "default-draft";
+  const draftId = useDraftStore(state => state.activeDraftId);
   const { updateDraft, drafts } = useDraftStore();
   const messages = (drafts[draftId]?.messages || []) as StoreMessage[];
 

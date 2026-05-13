@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import styles from './MenuBar.module.css';
 import { useDraftspace } from './Draftspace.context';
+import { useDraftStore } from './store/draftStore';
 
 import {
   Bold,
@@ -24,6 +25,7 @@ import { exportToPDF, exportToDocx, exportToTxt, exportToHtml } from './utils/ex
 
 export default function MenuBar({ editor }: { editor: any }) {
   const { margins, setMargins } = useDraftspace();
+  const { createNewDraft, setActiveDraftId } = useDraftStore();
   const [showMargins, setShowMargins] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -51,9 +53,17 @@ export default function MenuBar({ editor }: { editor: any }) {
 
       const data = await response.json();
       
+      // Create a new draft for the imported document
+      const title = file.name.replace(/\.[^/.]+$/, ""); // remove extension
+      const newDraftId = createNewDraft(title);
+      setActiveDraftId(newDraftId);
+
       // Set content to editor
       // mammoth converts docx to clean HTML, which TipTap understands perfectly
-      editor.commands.setContent(data.html);
+      // Wait a tiny bit for the new draft context to propagate, or just set it
+      setTimeout(() => {
+        editor.commands.setContent(data.html);
+      }, 0);
       
       if (data.warnings && data.warnings.length > 0) {
         console.warn("Import Warnings:", data.warnings);

@@ -9,7 +9,7 @@ import { findPosByBlockId } from "../utils/nodeLookup";
 import { useDraftStore } from "../store/draftStore";
 
 export default function DocumentTree() {
-  const draftId = "default-draft";
+  const draftId = useDraftStore(state => state.activeDraftId);
   const blockTree = useDraftStore(state => state.drafts[draftId]?.blockTree);
   const activeBlockId = useDocumentStore(state => state.activeBlockId);
   const editor = useDocumentStore(state => state.editor);

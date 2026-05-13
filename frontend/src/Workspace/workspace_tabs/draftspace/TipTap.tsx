@@ -40,7 +40,8 @@ const Tiptap = () => {
   // Page width (A4 at 96dpi)
   const PAGE_WIDTH = 794 // px
 
-  const blockTree = useDraftStore(state => state.drafts["default-draft"]?.blockTree ?? null);
+  const draftId = useDraftStore(state => state.activeDraftId);
+  const blockTree = useDraftStore(state => state.drafts[draftId]?.blockTree ?? null);
   const updateDraft = useDraftStore(state => state.updateDraft);
 
   const editor = useEditor({
@@ -76,7 +77,7 @@ const Tiptap = () => {
       const newTree = proseMirrorToBlocks(json);
       
       // Update the persistent store
-      updateDraft("default-draft", { blockTree: newTree });
+      updateDraft(draftId, { blockTree: newTree });
     },
 
     onSelectionUpdate: ({ editor }) => {
@@ -108,6 +109,18 @@ const Tiptap = () => {
       setEditor(null)
     }
   }, [editor, setEditor])
+
+  // Sync editor content when draftId changes
+  useEffect(() => {
+    if (!editor) return;
+    
+    // Check if the current editor content is different from the blockTree
+    // A simple way is just to set content when draftId changes
+    const content = blockTree ? blockTreeToProseMirror(blockTree) : '<p></p>';
+    
+    // We only want to replace content if we just switched drafts
+    editor.commands.setContent(content);
+  }, [draftId, editor]);
 
 
 

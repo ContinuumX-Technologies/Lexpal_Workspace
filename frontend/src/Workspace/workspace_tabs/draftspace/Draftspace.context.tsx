@@ -31,8 +31,7 @@ const DraftspaceContext = createContext<DraftspaceContextType | null>(null)
 import { useDraftStore, DEFAULT_DRAFT_STATE } from "./store/draftStore"
 
 export function DraftspaceProvider({ children }: { children: React.ReactNode }) {
-  const draftId = "default-draft";
-  const { updateDraft, drafts } = useDraftStore();
+  const { drafts, activeDraftId: draftId, updateDraft, createNewDraft, setActiveDraftId } = useDraftStore();
   const { addUsage } = useUsageStore();
   const rawDraft = drafts[draftId] || DEFAULT_DRAFT_STATE;
   
@@ -103,10 +102,20 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
           children: blocks
         }
 
-        setBlockTree(newTree)
+        // Create a new draft with the template name (or a default name)
+        const newTitle = data.template_name || "New AI Draft"
+        const newDraftId = createNewDraft(newTitle)
+        
+        // Update the newly created draft with the block tree
+        updateDraft(newDraftId, { blockTree: newTree })
+        
+        // Switch to the new draft
+        setActiveDraftId(newDraftId)
 
+        // The useEffect in TipTap.tsx will handle setting the editor content
+        // when the activeDraftId changes, but we can also set it immediately here
+        // to prevent flickering.
         const pmDoc = blockTreeToProseMirror(newTree)
-
         editor.commands.setContent(pmDoc)
 
         return
