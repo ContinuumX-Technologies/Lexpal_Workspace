@@ -398,7 +398,7 @@ const PromptInputAction: React.FC<PromptInputActionProps> = ({
 const CustomDivider: React.FC = () => (
   <div className="relative h-6 w-[1.5px] mx-1">
     <div
-      className="absolute inset-0 bg-gradient-to-t from-transparent via-[#9b87f5]/70 to-transparent rounded-full"
+      className="absolute inset-0 bg-linear-to-t from-transparent via-[#9b87f5]/70 to-transparent rounded-full"
       style={{
         clipPath: "polygon(0% 0%, 100% 0%, 100% 40%, 140% 50%, 100% 60%, 100% 100%, 0% 100%, 0% 60%, -40% 50%, 0% 40%)",
       }}
@@ -639,7 +639,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                     : "bg-transparent border-transparent text-[#9CA3AF] hover:text-[#D1D5DB]"
                 )}
               >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
                   <motion.div
                     animate={{ rotate: showSearch ? 360 : 0, scale: showSearch ? 1.1 : 1 }}
                     whileHover={{ rotate: showSearch ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
@@ -655,7 +655,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#1EAEDB] flex-shrink-0"
+                      className="text-xs overflow-hidden whitespace-nowrap text-[#1EAEDB] shrink-0"
                     >
                       Search
                     </motion.span>
@@ -675,7 +675,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                     : "bg-transparent border-transparent text-[#9CA3AF] hover:text-[#D1D5DB]"
                 )}
               >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
                   <motion.div
                     animate={{ rotate: showThink ? 360 : 0, scale: showThink ? 1.1 : 1 }}
                     whileHover={{ rotate: showThink ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
@@ -691,7 +691,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#8B5CF6] flex-shrink-0"
+                      className="text-xs overflow-hidden whitespace-nowrap text-[#8B5CF6] shrink-0"
                     >
                       Think
                     </motion.span>
@@ -711,7 +711,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                     : "bg-transparent border-transparent text-[#9CA3AF] hover:text-[#D1D5DB]"
                 )}
               >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
                   <motion.div
                     animate={{ rotate: showCanvas ? 360 : 0, scale: showCanvas ? 1.1 : 1 }}
                     whileHover={{ rotate: showCanvas ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
@@ -727,7 +727,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#F97316] flex-shrink-0"
+                      className="text-xs overflow-hidden whitespace-nowrap text-[#F97316] shrink-0"
                     >
                       Canvas
                     </motion.span>

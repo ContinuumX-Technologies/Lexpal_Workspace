@@ -70,14 +70,47 @@
   margin: 0 0 0.5em 0;
 }
 
-.editorSurface :global(.tiptap h1),
-.editorSurface :global(.tiptap h2),
-.editorSurface :global(.tiptap h3),
-.editorSurface :global(.tiptap h4),
-.editorSurface :global(.tiptap h5),
+.editorSurface :global(.tiptap h1) {
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  margin: 12px 0 8px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h2) {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  margin: 10px 0 6px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h3) {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 8px 0 4px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h4) {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 6px 0 4px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h5) {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 4px 0 2px 0 !important;
+  display: block !important;
+}
 .editorSurface :global(.tiptap h6) {
-  margin: 0.8em 0 0.4em 0;
-  line-height: 1.3;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 4px 0 2px 0 !important;
+  display: block !important;
 }
 
 /* Page break node */
@@ -91,7 +124,6 @@
   position: relative;
   page-break-after: always;
   break-after: page;
-  contenteditable: false;
   pointer-events: none;
   user-select: none;
 }
@@ -150,4 +182,35 @@
 }
 .editorSurface :global(.tiptap .clause) {
   margin-bottom: 12pt;
+}
+
+/* List Styles */
+.editorSurface :global(.tiptap ul),
+.editorSurface :global(.tiptap ol) {
+  padding-left: 32px;
+  margin: 12px 0;
+}
+
+.editorSurface :global(.tiptap ul) {
+  list-style-type: disc;
+}
+
+.editorSurface :global(.tiptap ol) {
+  list-style-type: decimal;
+}
+
+/* Allow ordered list type attribute to override default (for a., i., etc) */
+.editorSurface :global(.tiptap ol[type="a"]) {
+  list-style-type: lower-alpha;
+}
+.editorSurface :global(.tiptap ol[type="i"]) {
+  list-style-type: lower-roman;
+}
+
+.editorSurface :global(.tiptap li) {
+  margin-bottom: 4px;
+}
+
+.editorSurface :global(.tiptap li > p) {
+  margin: 0;
 }

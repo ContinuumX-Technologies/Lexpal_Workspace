@@ -90,6 +90,15 @@ export default function MenuBar({ editor }: { editor: any }) {
           <Heading size={16} />
           <select
             className={styles.select}
+            value={
+              editor.isActive('heading', { level: 1 }) ? 1 :
+              editor.isActive('heading', { level: 2 }) ? 2 :
+              editor.isActive('heading', { level: 3 }) ? 3 :
+              editor.isActive('heading', { level: 4 }) ? 4 :
+              editor.isActive('heading', { level: 5 }) ? 5 :
+              editor.isActive('heading', { level: 6 }) ? 6 :
+              0
+            }
             onChange={(e) => {
               const level = Number(e.target.value);
               if (level === 0) {
@@ -142,6 +151,7 @@ export default function MenuBar({ editor }: { editor: any }) {
           <Type size={16} />
           <select
             className={styles.select}
+            value={editor.getAttributes('textStyle').fontFamily || 'Times New Roman'}
             onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
           >
             <option value="Times New Roman">Times</option>
@@ -156,6 +166,7 @@ export default function MenuBar({ editor }: { editor: any }) {
           <Type size={14} />
           <select
             className={`${styles.select} ${styles.selectSmall}`}
+            value={editor.getAttributes('textStyle').fontSize || '14px'}
             onChange={(e) => editor.chain().focus().setFontSize(e.target.value).run()}
           >
             <option value="12px">12</option>
@@ -209,7 +220,7 @@ export default function MenuBar({ editor }: { editor: any }) {
         </button>
         <select
           className={styles.select}
-          defaultValue="1"
+          value={editor.getAttributes('orderedList').listType || '1'}
           title="List style"
           onChange={(e) => {
             const val = e.target.value as '1' | 'a' | 'i';
