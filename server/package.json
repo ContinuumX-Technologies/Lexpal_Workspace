@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "Lexpal Workspace Express API Server",
   "main": "dist/server.js",
+  
   "scripts": {
-    "dev": "nodemon --exec ts-node server.ts",
+    "dev": "nodemon server.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },

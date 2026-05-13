@@ -47,7 +47,7 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
     try {
       setLoading(true)
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/draftspace-ai`, {
+      const response = await fetch(`http://localhost:3001/api/documents/draftspace-ai`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
