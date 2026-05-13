@@ -125,7 +125,11 @@ Return ONLY a valid JSON array of strings in the same order.
   }
 
   try {
-    const parsed: unknown = JSON.parse(content);
+    const cleaned = content.match(/```json?\n?([\s\S]*?)\n?```/)
+      ? content.match(/```json?\n?([\s\S]*?)\n?```/)![1].trim()
+      : content.trim();
+
+    const parsed: unknown = JSON.parse(cleaned);
 
     if (!Array.isArray(parsed)) {
       throw new Error("Invalid format from LLM");

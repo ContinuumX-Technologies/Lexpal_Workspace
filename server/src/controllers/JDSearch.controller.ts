@@ -55,6 +55,10 @@ interface SearchRequestBody {
     reframedQuery?: string;
     excludeIds?: string[];
     pageSize?: number;
+    jurisdiction?: string;
+    year?: number;
+    status?: string;
+    area?: string;
 }
 
 interface SearchResponseItem {
@@ -132,6 +136,10 @@ export const searchJudgements = async (
             reframedQuery,
             excludeIds = [],
             pageSize = 5,
+            jurisdiction,
+            year,
+            status,
+            area
         } = req.body;
 
         if (!query && !reframedQuery) {
@@ -148,6 +156,14 @@ export const searchJudgements = async (
             finalQuery = await rewriteQuery(query as string);
         }
 
+        // Augment query with filters that aren't in metadata yet
+        if (area) {
+            finalQuery += ` focusing on ${area} law`;
+        }
+        if (status) {
+            finalQuery += ` with ${status} status`;
+        }
+
         const queries: string[] = [
             query ?? finalQuery,
             finalQuery,
@@ -161,14 +177,32 @@ export const searchJudgements = async (
         // 2. Dynamic chunk fetch size
         // -------------------------------
         const BASE_FETCH = 120;
-        const CHUNK_FETCH_LIMIT =
-            BASE_FETCH + Math.min(excludeIds.length * 8, 200);
+        const CHUNK_FETCH_LIMIT = BASE_FETCH; // Fixed size because Chroma filters natively
 
         const chromaCollection = await getOrCreateChromaCollection(COLLECTION_NAME);
+
+        let whereClause: any = undefined;
+        const andFilters: any[] = [];
+
+        if (excludeIds.length > 0) {
+            andFilters.push({ judgement_db_id: { $nin: excludeIds } });
+        }
+        if (jurisdiction) {
+            // Mapping frontend "Supreme Court" to backend "Supreme court" if needed
+            andFilters.push({ judgement_type: jurisdiction });
+        }
+        if (year) {
+            andFilters.push({ year: year });
+        }
+
+        if (andFilters.length > 0) {
+            whereClause = andFilters.length === 1 ? andFilters[0] : { $and: andFilters };
+        }
 
         const raw = await chromaCollection.query({
             queryEmbeddings: embeddings,
             nResults: CHUNK_FETCH_LIMIT,
+            where: whereClause
         });
 
         // -------------------------------
@@ -279,6 +313,65 @@ export const searchJudgements = async (
             });
         }
 
+        // -------------------------------
+        // 6.5 Exact Title Match Boost
+        // -------------------------------
+        if (query && excludeIds.length === 0) {
+            try {
+                const qStr = String(query).toLowerCase();
+                const isTitleSearch = qStr.includes(" vs ") || qStr.includes(" v. ") || qStr.includes(" v ");
+                
+                if (isTitleSearch) {
+                    const { MongoClient } = await import("mongodb");
+                    const url = process.env.MONGO_CONNECTION_URL;
+                    if (url) {
+                        const client = new MongoClient(url);
+                        await client.connect();
+                        const db = client.db("Lexpal_Workspace");
+                        const collection = db.collection("supreme_court_judgements");
+                        
+                        const mongoQuery: any = { $text: { $search: String(query) } };
+                        if (year) mongoQuery.year = year;
+                        if (jurisdiction) mongoQuery.judgement_type = jurisdiction;
+
+                        const exactDocs = await collection.find(
+                            mongoQuery,
+                            { projection: { score: { $meta: "textScore" }, title: 1, year: 1 } }
+                        ).sort({ score: { $meta: "textScore" } }).limit(1).toArray();
+                        
+                        if (exactDocs.length > 0) {
+                            const exactDoc = exactDocs[0] as any;
+                            if (exactDoc.score > 1.0) {
+                                const jId = exactDoc._id.toString();
+                                const existingIdx = scoredJudgments.findIndex(j => j.judgmentId === jId);
+                                if (existingIdx !== -1) {
+                                    scoredJudgments.splice(existingIdx, 1);
+                                }
+                                scoredJudgments.push({
+                                    judgmentId: jId,
+                                    score: 9999, // Guarantee top placement
+                                    metadata: {
+                                        judgement_type: "Supreme court",
+                                        judgement_db_id: jId,
+                                        title: exactDoc.title,
+                                        year: exactDoc.year || 2024,
+                                        section_type: "default",
+                                        chunk_index: 0,
+                                        total_chunks_in_section: 1,
+                                        prev_chunk_id: null,
+                                        next_chunk_id: null
+                                    }
+                                });
+                            }
+                        }
+                        await client.close();
+                    }
+                }
+            } catch (err) {
+                console.error("Exact match boost failed:", err);
+            }
+        }
+
         scoredJudgments.sort((a, b) => b.score - a.score);
 
         const selected = scoredJudgments.slice(0, pageSize);
@@ -314,5 +407,40 @@ export const searchJudgements = async (
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Search failed" });
+    }
+};
+
+export const getJudgementById = async (req: Request, res: Response): Promise<void> => {
+    const { MongoClient, ObjectId } = await import("mongodb");
+    const url = process.env.MONGO_CONNECTION_URL;
+    if (!url) {
+        res.status(500).json({ error: "DB connection not configured" });
+        return;
+    }
+    
+    const client = new MongoClient(url);
+    try {
+        const id = req.params.id;
+        if (!ObjectId.isValid(id)) {
+            res.status(400).json({ error: "Invalid judgment ID" });
+            return;
+        }
+
+        await client.connect();
+        const db = client.db("Lexpal_Workspace");
+        const collection = db.collection("supreme_court_judgements");
+        
+        const doc = await collection.findOne({ _id: new ObjectId(id) });
+        if (!doc) {
+            res.status(404).json({ error: "Judgment not found" });
+            return;
+        }
+
+        res.json(doc);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to fetch judgment details" });
+    } finally {
+        await client.close();
     }
 };

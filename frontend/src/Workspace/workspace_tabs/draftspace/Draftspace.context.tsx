@@ -4,6 +4,7 @@ import { blockTreeToProseMirror } from "./editor/blockToProseMirror"
 import type { BlockNode, Span } from "./store/documentTypes"
 export type RightPanelTab = "ai-chat" | "placeholders" | "format-builder";
 import type { ChatHistoryItem } from "./tabs/AiChat"
+import { useUsageStore, estimateTokens } from "@/store/usageStore"
 
 
 export interface Margins {
@@ -20,25 +21,44 @@ interface DraftspaceContextType {
     setActiveTab: (tab: RightPanelTab) => void;
     margins: Margins;
     setMargins: (m: Partial<Margins>) => void;
+    typography: { fontFamily: string; fontSize: number; lineHeight: number };
+    setTypography: (t: Partial<{ fontFamily: string; fontSize: number; lineHeight: number }>) => void;
 }
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_MARGINS: Margins = { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 };
 const DraftspaceContext = createContext<DraftspaceContextType | null>(null)
 
+import { useDraftStore, DEFAULT_DRAFT_STATE } from "./store/draftStore"
+
 export function DraftspaceProvider({ children }: { children: React.ReactNode }) {
+  const { drafts, activeDraftId: draftId, updateDraft, createNewDraft, setActiveDraftId } = useDraftStore();
+  const { addUsage } = useUsageStore();
+  const rawDraft = drafts[draftId] || DEFAULT_DRAFT_STATE;
+  
+  // Deep merge to handle cases where localStorage has old data missing new fields
+  const currentDraft = {
+    ...DEFAULT_DRAFT_STATE,
+    ...rawDraft,
+    margins: { ...DEFAULT_DRAFT_STATE.margins, ...rawDraft.margins },
+    typography: { ...DEFAULT_DRAFT_STATE.typography, ...rawDraft.typography },
+  };
 
   const editor = useDocumentStore(state => state.editor)
-  const blockTree = useDocumentStore(state => state.blockTree)
-  const setBlockTree = useDocumentStore(state => state.setBlockTree)
+  const blockTree = currentDraft.blockTree as BlockNode | null;
+  const setBlockTree = (tree: BlockNode) => updateDraft(draftId, { blockTree: tree });
 
   const [loading, setLoading] = useState(false)
-   const [activeTab, setActiveTab] = useState<RightPanelTab>("format-builder");
-    const [margins, setMarginsState] = useState<Margins>(DEFAULT_MARGINS);
-   
+  
+  const activeTab = currentDraft.activeTab as RightPanelTab;
+  const setActiveTab = (tab: RightPanelTab) => updateDraft(draftId, { activeTab: tab });
 
-    const setMargins = (m: Partial<Margins>) =>
-        setMarginsState(prev => ({ ...prev, ...m }));
+  const margins = currentDraft.margins;
+  const setMargins = (m: Partial<Margins>) => 
+    updateDraft(draftId, { margins: { ...margins, ...m } });
+
+  const typography = currentDraft.typography;
+  const setTypography = (t: Partial<{ fontFamily: string; fontSize: number; lineHeight: number }>) =>
+    updateDraft(draftId, { typography: { ...typography, ...t } });
 
   const sendAIMessage = async (message: string, history: ChatHistoryItem[], templateChoice: string|null) => {
 
@@ -62,6 +82,12 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
 
       const data = await response.json()
 
+      // Track usage
+      const queryUsage = estimateTokens(message);
+      const dataStr = JSON.stringify(data);
+      const responseUsage = estimateTokens(dataStr);
+      addUsage(queryUsage + responseUsage);
+
       /**
        * ✅ CREATE NEW DOCUMENT
        */
@@ -76,10 +102,20 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
           children: blocks
         }
 
-        setBlockTree(newTree)
+        // Create a new draft with the template name (or a default name)
+        const newTitle = data.template_name || "New AI Draft"
+        const newDraftId = createNewDraft(newTitle)
+        
+        // Update the newly created draft with the block tree
+        updateDraft(newDraftId, { blockTree: newTree })
+        
+        // Switch to the new draft
+        setActiveDraftId(newDraftId)
 
+        // The useEffect in TipTap.tsx will handle setting the editor content
+        // when the activeDraftId changes, but we can also set it immediately here
+        // to prevent flickering.
         const pmDoc = blockTreeToProseMirror(newTree)
-
         editor.commands.setContent(pmDoc)
 
         return
@@ -105,6 +141,13 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
       }
 
       /**
+       * ✅ CHAT RESPONSE (Q&A)
+       */
+      if (data.intent === "chat_response") {
+        return data
+      }
+
+      /**
        * ✅ CLARIFICATION FLOW
        */
       if (data.intent === "clarify") {
@@ -125,8 +168,10 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
         loading,
          activeTab,
                 setActiveTab,
-                margins,
-                setMargins
+                 margins,
+                 setMargins,
+                 typography,
+                 setTypography
       }}
     >
       {children}

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import styles from "./ResultsPage.module.css";
 import { useJDSearch } from "../JDSearch.context";
 import type { CaseResult, JudgmentListItem } from "../JDSearch.context";
+import { useTabCtx } from "../../../contexts/tab.context";
 
 // ─── Skeleton: sidebar list ───────────────────────────────────────────────────
 function ResultSkeleton() {
@@ -119,10 +120,12 @@ function CasePreview({
   c,
   pinned,
   onPin,
+  onViewFull,
 }: {
   c: CaseResult;
   pinned: boolean;
   onPin: () => void;
+  onViewFull: () => void;
 }) {
   return (
     <>
@@ -143,7 +146,7 @@ function CasePreview({
                 push_pin
               </span>
             </button>
-            <button className={styles.viewFullBtn}>
+            <button className={styles.viewFullBtn} onClick={onViewFull}>
               <span className={`material-symbols-outlined ${styles.viewFullBtnIcon}`}>bolt</span>
               View Full Case
             </button>
@@ -151,6 +154,11 @@ function CasePreview({
         </div>
         <h1 className={styles.previewTitle}>{c.title}</h1>
         <div className={styles.previewSubMeta}>
+          <span>
+            <span className={styles.previewSubMetaLabel}>ID:</span>
+            <span style={{ fontFamily: "monospace" }}>{c.id}</span>
+          </span>
+          <span className={styles.previewSubMetaDot} />
           <span>
             <span className={styles.previewSubMetaLabel}>Bench:</span>
             {c.judges}
@@ -174,7 +182,7 @@ function CasePreview({
           <span className={`material-symbols-outlined ${styles.outcomeIcon}`}>verified</span>
           <div>
             <span className={styles.outcomeStripLabel}>Judgment Outcome</span>
-            <p className={styles.outcomeStripTitle}>{c.outcome}</p>
+            <div className={styles.outcomeStripTitle} style={{ whiteSpace: "pre-wrap", marginTop: "0.25rem", lineHeight: "1.5" }}>{c.outcome}</div>
           </div>
         </div>
 
@@ -182,26 +190,32 @@ function CasePreview({
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             <div className={styles.decisionBlock}>
               <span className={styles.decisionTag}>Final Decision</span>
-              <p className={styles.decisionText}>
-                The {c.court} ruled:{" "}
-                <span className={styles.highlight}>{c.outcome}</span>
-                {c.formula && (
-                  <> using the formula <span className={styles.highlight}>{c.formula}</span>.</>
+              <div className={styles.decisionText} style={{ whiteSpace: "pre-wrap", marginTop: "0.5rem", lineHeight: "1.5" }}>
+                {c.finalDecision ? (
+                  c.finalDecision
+                ) : (
+                  <>
+                    The {c.court} ruled:{" "}
+                    <span className={styles.highlight}>{c.outcome}</span>
+                    {c.formula && (
+                      <> using the formula <span className={styles.highlight}>{c.formula}</span>.</>
+                    )}
+                  </>
                 )}
-              </p>
+              </div>
             </div>
 
             <div className={styles.issuesHoldingsBox}>
               <div>
                 <span className={styles.boxLabel}>Issues Considered</span>
-                <ul className={styles.issuesList}>
+                <div className={styles.holdingsList}>
                   {c.issues.map((issue, i) => (
-                    <li key={i} className={styles.issueItem}>
-                      <span className={styles.bulletDot}>•</span>
-                      {issue}
-                    </li>
+                    <div key={i} className={styles.holdingItem}>
+                      <span className={styles.holdingNum}>{i + 1}</span>
+                      <p className={styles.holdingText}>{issue}</p>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
               <div>
                 <span className={styles.boxLabel}>Key Holdings</span>
@@ -262,6 +276,8 @@ function CasePreview({
 
 // ─── Main ResultsPage ─────────────────────────────────────────────────────────
 export default function ResultsPage() {
+  const { setActiveTab } = useTabCtx();
+
   const {
     appState,
     query,
@@ -270,11 +286,24 @@ export default function ResultsPage() {
     selectedCase,
     previewLoading,
     pinnedCases,
+    jurisdiction,
+    setJurisdiction,
+    year,
+    setYear,
+    status,
+    setStatus,
+    area,
+    setArea,
+    resetFilters,
     refineSearch,
     loadMore,
     selectJudgment,
     togglePin,
   } = useJDSearch();
+
+  const handleViewFull = () => {
+    setActiveTab("judgement_analyzer");
+  };
 
   const [sidebarQuery, setSidebarQuery] = useState(query);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -302,17 +331,85 @@ export default function ResultsPage() {
       {/* Filter bar */}
       <div className={styles.filterBar}>
         <div className={styles.filterGroup}>
-          {["Jurisdiction", "Year: 2023", "Status", "Area"].map((label) => (
-            <button key={label} className={styles.filterChip}>
-              <span>{label}</span>
-              <span className={`material-symbols-outlined ${styles.filterChipIcon}`}>
-                expand_more
-              </span>
-            </button>
-          ))}
+          {/* Jurisdiction */}
+          <div className={styles.filterSelectWrapper}>
+            <select 
+              className={styles.filterSelect}
+              value={jurisdiction}
+              onChange={(e) => {
+                setJurisdiction(e.target.value);
+                // Trigger re-search if query exists
+                if (query) refineSearch(query);
+              }}
+            >
+              <option value="">Jurisdiction</option>
+              <option value="Supreme court">Supreme Court</option>
+              <option value="High court">High Court</option>
+            </select>
+          </div>
+
+          {/* Year */}
+          <div className={styles.filterSelectWrapper}>
+            <input 
+              type="number"
+              className={styles.filterYearInput}
+              placeholder="Year (e.g. 2023)"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              onBlur={() => {
+                if (query) refineSearch(query);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query) refineSearch(query);
+              }}
+            />
+          </div>
+
+          {/* Status */}
+          <div className={styles.filterSelectWrapper}>
+            <select 
+              className={styles.filterSelect}
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                if (query) refineSearch(query);
+              }}
+            >
+              <option value="">Status</option>
+              <option value="Reportable">Reportable</option>
+              <option value="Non-reportable">Non-reportable</option>
+            </select>
+          </div>
+
+          {/* Area */}
+          <div className={styles.filterSelectWrapper}>
+            <select 
+              className={styles.filterSelect}
+              value={area}
+              onChange={(e) => {
+                setArea(e.target.value);
+                if (query) refineSearch(query);
+              }}
+            >
+              <option value="">Legal Area</option>
+              <option value="Arbitration">Arbitration</option>
+              <option value="Criminal">Criminal</option>
+              <option value="Civil">Civil</option>
+              <option value="Constitutional">Constitutional</option>
+              <option value="Taxation">Taxation</option>
+            </select>
+          </div>
         </div>
         <div className={styles.divider} />
-        <button className={styles.clearBtn}>Clear Filters</button>
+        <button 
+          className={styles.clearBtn} 
+          onClick={() => {
+            resetFilters();
+            if (query) refineSearch(query);
+          }}
+        >
+          Clear Filters
+        </button>
       </div>
 
       <main className={styles.main}>
@@ -362,11 +459,16 @@ export default function ResultsPage() {
                     key={item.judgement_db_id}
                     item={item}
                     active={selectedCase?.id === item.judgement_db_id}
-                    pinned={pinnedCases.includes(item.judgement_db_id)}
+                    pinned={pinnedCases.some((p) => p.id === item.judgement_db_id)}
                     onSelect={() => selectJudgment(item)}
                     onPin={(e) => {
                       e.stopPropagation();
-                      togglePin(item.judgement_db_id);
+                      togglePin({
+                        id: item.judgement_db_id,
+                        title: item.short_hand_title,
+                        court: item.judgement_type,
+                        year: item.year
+                      });
                     }}
                   />
                 ))}
@@ -403,8 +505,14 @@ export default function ResultsPage() {
           ) : selectedCase ? (
             <CasePreview
               c={selectedCase}
-              pinned={pinnedCases.includes(selectedCase.id)}
-              onPin={() => togglePin(selectedCase.id)}
+              pinned={pinnedCases.some((p) => p.id === selectedCase.id)}
+              onPin={() => togglePin({
+                id: selectedCase.id,
+                title: selectedCase.shortTitle || selectedCase.title,
+                court: selectedCase.court,
+                year: selectedCase.year
+              })}
+              onViewFull={handleViewFull}
             />
           ) : (
             <PreviewPlaceholder />

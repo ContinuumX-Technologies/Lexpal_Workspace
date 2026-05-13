@@ -3,6 +3,7 @@ import { useDocumentStore } from "../store/documentStore"
 import type { BlockNode } from "../store/documentTypes"
 import styles from "./Placeholders.module.css"
 import { blockTreeToProseMirror } from "../editor/blockToProseMirror"
+import { proseMirrorToBlocks } from "../editor/proseMirrorToBlocks"
 
 interface PlaceholderEntry {
   key: string
@@ -10,47 +11,37 @@ interface PlaceholderEntry {
 }
 
 /**
- * Extract placeholders from BlockTree
+ * Extract placeholders from raw text
  */
-function extractPlaceholders(tree: BlockNode | null): string[] {
-  if (!tree) return []
+function extractPlaceholders(text: string): string[] {
+  if (!text) return []
 
   const regex = /\{\{(\s*[\w\s-]+?\s*)\}\}/g
   const found = new Set<string>()
+  let match: RegExpExecArray | null
 
-  function traverse(node: BlockNode) {
-    if (node.content) {
-      for (const span of node.content) {
-        let match: RegExpExecArray | null
-        while ((match = regex.exec(span.text)) !== null) {
-          found.add(match[1].trim())
-        }
-      }
-    }
-
-    if (node.children) {
-      node.children.forEach(traverse)
-    }
+  while ((match = regex.exec(text)) !== null) {
+    found.add(match[1].trim())
   }
 
-  traverse(tree)
   return Array.from(found)
 }
 
-export default function Placeholders() {
+import { useDraftStore } from "../store/draftStore"
 
-  const blockTree = useDocumentStore(state => state.blockTree)
-  const setBlockTree = useDocumentStore(state => state.setBlockTree)
+export default function Placeholders() {
+  const draftId = "default-draft";
+  const { updateDraft } = useDraftStore();
+  const setBlockTree = (tree: BlockNode) => updateDraft(draftId, { blockTree: tree });
   const editor = useDocumentStore(state => state.editor)
 
   const [entries, setEntries] = useState<PlaceholderEntry[]>([])
   const [applied, setApplied] = useState(false)
 
-  /**
-   * Detect placeholders from BlockTree
-   */
-  useEffect(() => {
-    const keys = extractPlaceholders(blockTree)
+  const detectPlaceholders = () => {
+    if (!editor) return
+    const text = editor.getText()
+    const keys = extractPlaceholders(text)
 
     setEntries(prev => {
       const existingMap = new Map(prev.map(e => [e.key, e.value]))
@@ -60,9 +51,23 @@ export default function Placeholders() {
         value: existingMap.get(k) ?? ""
       }))
     })
-
     setApplied(false)
-  }, [blockTree])
+  }
+
+  /**
+   * Detect placeholders from editor content continuously
+   */
+  useEffect(() => {
+    if (!editor) return
+
+    detectPlaceholders()
+
+    editor.on('update', detectPlaceholders)
+
+    return () => {
+      editor.off('update', detectPlaceholders)
+    }
+  }, [editor])
 
   const updateValue = (key: string, value: string) => {
     setEntries(prev =>
@@ -72,13 +77,16 @@ export default function Placeholders() {
   }
 
   /**
-   * Apply placeholders directly to BlockTree
+   * Apply placeholders directly to Editor state, preserving user edits
    */
   const handleApply = () => {
-    if (!blockTree || !editor) return
+    if (!editor) return
 
-    const newTree = structuredClone(blockTree)
+    // 1. Sync current editor state to blocks to preserve all user edits
+    const currentTree = proseMirrorToBlocks(editor.getJSON() as any)
+    const newTree = structuredClone(currentTree)
 
+    // 2. Replace placeholders within the blocks
     function replaceInNode(node: BlockNode) {
       if (node.content) {
         node.content = node.content.map(span => {
@@ -106,13 +114,11 @@ export default function Placeholders() {
 
     replaceInNode(newTree)
 
-    // ✅ Update store
+    // 3. Update store
     setBlockTree(newTree)
 
-    // ✅ Update editor
-    
+    // 4. Update editor with the new content
     const pmDoc = blockTreeToProseMirror(newTree)
-
     editor.commands.setContent(pmDoc)
 
     setApplied(true)
