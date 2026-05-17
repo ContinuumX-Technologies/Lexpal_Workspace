@@ -3,12 +3,19 @@
 import { useTabCtx } from "../contexts/tab.context";
 import { useJDSearch } from "../workspace_tabs/judgement_search/JDSearch.context";
 import { useDraftStore } from "../workspace_tabs/draftspace/store/draftStore";
+import { useUserStore } from "../../store/userStore";
 import styles from "./LeftPanel.module.css";
 
 export default function LeftPanel() {
   const { isLeftPanelOpen } = useTabCtx();
   const { pinnedCases, togglePin } = useJDSearch();
-  const { drafts, activeDraftId, setActiveDraftId, createNewDraft, deleteDraft } = useDraftStore();
+  const { drafts, activeDraftId, setActiveDraftId, createNewDraft, deleteDraft, assignDraft } = useDraftStore();
+  const { availableUsers, currentUser } = useUserStore();
+
+  const handleAssign = (draftId: string, userId: string) => {
+    const assignedUser = availableUsers.find(u => u.id === userId);
+    assignDraft(draftId, userId, assignedUser?.name || 'Unknown', currentUser.name, currentUser.id);
+  };
 
   const draftEntries = Object.entries(drafts).sort((a, b) => {
     return new Date(b[1].updatedAt).getTime() - new Date(a[1].updatedAt).getTime();
@@ -38,7 +45,6 @@ export default function LeftPanel() {
                 key={id} 
                 className={`${styles.pinnedItem} ${id === activeDraftId ? styles.activeDraft : ""}`}
                 onClick={() => setActiveDraftId(id)}
-                style={{ cursor: 'pointer' }}
               >
                 <div className={styles.pinnedItemMain}>
                   <p className={styles.pinnedItemTitle}>{draft.title}</p>
@@ -47,18 +53,40 @@ export default function LeftPanel() {
                     <span className={styles.pinnedItemYear}>
                       {new Date(draft.updatedAt).toLocaleDateString()}
                     </span>
+                    {draft.assignedTo && (
+                      <span className={styles.assignmentBadge}>
+                        Assigned to: {availableUsers.find(u => u.id === draft.assignedTo)?.name.split(" ")[0]}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <button
-                  className={styles.unpinBtn}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteDraft(id);
-                  }}
-                  title="Delete Draft"
-                >
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
+                <div className={styles.draftActions}>
+                  <select 
+                    className={styles.assignSelect}
+                    value={draft.assignedTo || ""}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleAssign(id, e.target.value);
+                    }}
+                    title="Assign to collaborator"
+                  >
+                    <option value="">Assign</option>
+                    {availableUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name.split(" ")[0]}</option>
+                    ))}
+                  </select>
+                  <button
+                    className={styles.unpinBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteDraft(id);
+                    }}
+                    title="Delete Draft"
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -82,13 +110,15 @@ export default function LeftPanel() {
                     <span className={styles.pinnedItemYear}>{c.year}</span>
                   </div>
                 </div>
-                <button
-                  className={styles.unpinBtn}
-                  onClick={() => togglePin(c)}
-                  title="Unpin"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
+                <div className={styles.draftActions}>
+                  <button
+                    className={styles.unpinBtn}
+                    onClick={() => togglePin(c)}
+                    title="Unpin"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -15,9 +15,10 @@ const collectionName = "supreme_court_judgements";
 const SYSTEM_PROMPT = `You are a legal assistant tasked with extracting key information from a Supreme Court judgment.
 The user will provide you with a list of text segments from the judgment. Each segment has a specific 'type' (like Fact, Issue, Precedent Analysis, Conclusion, etc.) and 'content'. 
 You MUST carefully read and consider the 'type' and 'content' of EVERY single object in the texts array.
-Analyze all these text segments collectively and generate an exhaustive, highly detailed report. DO NOT provide brief summaries; provide full, comprehensive details for each of the following 8 sections.
+Analyze all these text segments collectively and generate an exhaustive, highly detailed report. DO NOT provide brief summaries; provide full, comprehensive details for each of the following 9 sections.
 CRITICAL FORMATTING INSTRUCTION: For fields that naturally contain lists or multiple points (especially "issuesConsidered" and "keyHoldings"), you MUST separate each distinct point with a newline character (\n). Do NOT write them as a single continuous paragraph with inline numbering like (1), (2).
-Please output the report STRICTLY as a JSON object where the keys are the 8 section names below, and the values are STRICTLY Markdown-formatted strings (do NOT use nested arrays or objects for the values):
+Please output the report STRICTLY as a JSON object where the keys are the 9 section names below, and the values are STRICTLY Markdown-formatted strings (do NOT use nested arrays or objects for the values):
+- "judgmentDate"
 - "caseOverview"
 - "finalDecision"
 - "judgmentOutcome"
@@ -72,12 +73,14 @@ async function summarizeJudgments() {
                 `Text ${index + 1} (${t.type}):\n${t.content}`
             ).join('\n\n');
 
+            const dateInfo = doc.date ? `Judgment Date: ${doc.date}\n\n` : '';
+
             const response = await openaiClient.chat.completions.create({
                 model: "gpt-4o-mini", // Changed to a much cheaper model to reduce costs
                 response_format: { type: "json_object" },
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: `Here are the texts from the judgment:\n\n${textContent}` }
+                    { role: "user", content: `Here is the metadata and texts from the judgment:\n\n${dateInfo}${textContent}` }
                 ],
                 temperature: 0.2
             });

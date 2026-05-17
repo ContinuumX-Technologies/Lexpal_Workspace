@@ -22,8 +22,8 @@ import { proseMirrorToBlocks } from './editor/proseMirrorToBlocks'
 import { useDocumentStore } from './store/documentStore'
 import { useDraftStore } from './store/draftStore'
 import { useDraftspace } from './Draftspace.context'
-
-import { useEffect } from 'react'
+import { useUserStore, USERS } from '@/store/userStore'
+import { useRef, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import MenuBar from './MenuBar'
 import styles from './Editor.module.css'
@@ -41,8 +41,24 @@ const Tiptap = () => {
   const PAGE_WIDTH = 794 // px
 
   const draftId = useDraftStore(state => state.activeDraftId);
-  const blockTree = useDraftStore(state => state.drafts[draftId]?.blockTree ?? null);
+  const currentDraft = useDraftStore(state => state.drafts[draftId]);
+  const blockTree = currentDraft?.blockTree ?? null;
   const updateDraft = useDraftStore(state => state.updateDraft);
+  const addActivity = useDraftStore(state => state.addActivity);
+  const { currentUser } = useUserStore();
+  const baselineTreeRef = useRef<any>(null);
+  const debounceTimerRef = useRef<any>(null);
+
+  const isSenior = currentUser.role === "Senior Advocate";
+  const isAssigned = currentDraft?.assignedTo === currentUser.id;
+  const canEdit = isSenior || isAssigned;
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -76,8 +92,112 @@ const Tiptap = () => {
       const json = editor.getJSON() as any;
       const newTree = proseMirrorToBlocks(json);
       
-      // Update the persistent store
+      // Update the persistent store immediately for real-time sync
       updateDraft(draftId, { blockTree: newTree });
+
+      // If we don't have a baseline for this typing session, set it now
+      if (!baselineTreeRef.current) {
+        baselineTreeRef.current = useDraftStore.getState().drafts[draftId]?.blockTree ?? null;
+      }
+
+      const summarizeChange = (oldTree: any, newTree: any) => {
+        const extractAllText = (node: any): string => {
+          if (!node) return '';
+          let text = '';
+          
+          if (node.content && Array.isArray(node.content)) {
+            for (const span of node.content) {
+              if (span.text) text += span.text;
+            }
+          }
+          
+          if (node.children && Array.isArray(node.children)) {
+            for (const child of node.children) {
+              text += '\n' + extractAllText(child);
+            }
+          }
+          
+          return text;
+        };
+
+        const oldText = extractAllText(oldTree).trim();
+        const newText = extractAllText(newTree).trim();
+
+        if (oldText === newText) return '';
+
+        if (!oldText && newText) {
+          const preview = newText.split('\n')[0].slice(0, 100);
+          return `Started draft: "${preview}${newText.length > 100 ? '…' : ''}"`;
+        }
+
+        if (oldText && !newText) return `Cleared all content`;
+
+        const newLines = newText.split('\n').filter(l => l.trim());
+        const oldWords = oldText.split(/\s+/).length;
+        const newWords = newText.split(/\s+/).length;
+        
+        if (newWords > oldWords) {
+          const added = newWords - oldWords;
+          const newSnippet = newLines[newLines.length - 1]?.slice(0, 80) || newText.slice(-80);
+          return `Added ~${added} words: "${newSnippet}${newSnippet.length >= 80 ? '…' : ''}"`;
+        } else if (newWords < oldWords) {
+          const deleted = oldWords - newWords;
+          return `Deleted ~${deleted} words`;
+        }
+
+        const findDifference = (s1: string, s2: string) => {
+          let i = 0;
+          while (i < s1.length && i < s2.length && s1[i] === s2[i]) i++;
+          
+          let j = 0;
+          while (j < (s1.length - i) && j < (s2.length - i) && s1[s1.length - 1 - j] === s2[s2.length - 1 - j]) j++;
+          
+          const context = 20;
+          const start = Math.max(0, i - context);
+          const end1 = s1.length - j + context;
+          const end2 = s2.length - j + context;
+          
+          let oldPart = s1.slice(start, end1);
+          let newPart = s2.slice(start, end2);
+          
+          if (start > 0) {
+            oldPart = '…' + oldPart;
+            newPart = '…' + newPart;
+          }
+          if (j > context) {
+            oldPart += '…';
+            newPart += '…';
+          }
+          
+          return { oldPart, newPart };
+        };
+
+        const { oldPart, newPart } = findDifference(oldText, newText);
+        return `Diff: [-${oldPart}][+${newPart}]`;
+      };
+
+      // Debounce activity logging
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      
+      debounceTimerRef.current = setTimeout(() => {
+        const currentBaseline = baselineTreeRef.current;
+        const latestTree = useDraftStore.getState().drafts[draftId]?.blockTree ?? null;
+        
+        const summary = summarizeChange(currentBaseline, latestTree);
+        
+        if (summary) {
+          addActivity(draftId, {
+            userId: currentUser.id,
+            userName: currentUser.name,
+            type: 'edit' as const,
+            description: 'Updated document content',
+            details: summary
+          });
+          
+          // After logging, the current state becomes the new baseline
+          baselineTreeRef.current = latestTree;
+        }
+      }, 3000); // Wait for 3 seconds of inactivity
     },
 
     onSelectionUpdate: ({ editor }) => {
@@ -109,6 +229,12 @@ const Tiptap = () => {
       setEditor(null)
     }
   }, [editor, setEditor])
+
+  // Sync editable state
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(canEdit);
+  }, [editor, canEdit]);
 
   // Sync editor content when draftId changes
   useEffect(() => {
@@ -147,6 +273,14 @@ const Tiptap = () => {
       <div className={styles.desk} style={pageStyle}>
         <div id="draft-page-wrapper" className={styles.pageWrapper}>
           <div className={styles.editorSurface}>
+            {!canEdit && (
+              <div className={styles.readOnlyBadge}>
+                <span className="material-symbols-outlined">lock</span>
+                <span>
+                  Read-only: Assigned to <b>{USERS.find(u => u.id === currentDraft?.assignedTo)?.name || 'another team member'}</b>
+                </span>
+              </div>
+            )}
             <EditorContent editor={editor} />
           </div>
         </div>

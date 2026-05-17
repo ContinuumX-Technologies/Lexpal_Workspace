@@ -36,7 +36,9 @@ export default function SearchPage() {
     year, setYear,
     status, setStatus,
     area, setArea,
-    resetFilters
+    resetFilters,
+    searchSource,
+    setSearchSource,
   } = useJDSearch();
   
   const [query, setQuery] = useState("");
@@ -45,6 +47,28 @@ export default function SearchPage() {
   const handleSearch = useCallback(() => {
     if (query.trim()) search(query.trim());
   }, [query, search]);
+
+  const handleFirmUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("firmId", "lexpal_internal");
+    
+    try {
+      const res = await fetch("http://localhost:3001/api/firm-precedents/upload", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Successfully indexed "${data.title}" into your firm library!`);
+      }
+    } catch (err) {
+      alert("Failed to upload precedent.");
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") handleSearch();
@@ -88,6 +112,28 @@ export default function SearchPage() {
           </div>
           <h1 className={styles.title}>Judgment Search</h1>
           <p className={styles.subtitle}>Analyze the law with precision and AI-driven insights.</p>
+        </div>
+
+        {/* Source Toggle */}
+        <div className={styles.sourceTabs}>
+          <button 
+            className={`${styles.sourceTab} ${searchSource === "public" ? styles.activeTab : ""}`}
+            onClick={() => setSearchSource("public")}
+          >
+            Public Judgments
+          </button>
+          <button 
+            className={`${styles.sourceTab} ${searchSource === "firm" ? styles.activeTab : ""}`}
+            onClick={() => setSearchSource("firm")}
+          >
+            Firm Library
+          </button>
+          {searchSource === "firm" && (
+            <label className={styles.uploadLabel}>
+              <input type="file" onChange={handleFirmUpload} hidden accept=".docx" />
+              <span>+ Upload Precedent</span>
+            </label>
+          )}
         </div>
 
         {/* Search bar */}

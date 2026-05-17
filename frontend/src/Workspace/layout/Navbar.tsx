@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useTabCtx } from "../contexts/tab.context";
 import { useUsageStore } from "../../store/usageStore";
+import { useUserStore } from "../../store/userStore";
 import styles from "./Navbar.module.css";
 
 export default function Navbar() {
@@ -20,6 +21,7 @@ export default function Navbar() {
   }, []);
 
   const { tokensUsed, tokenLimit, resetUsage } = useUsageStore();
+  const { currentUser, availableUsers, setCurrentUser } = useUserStore();
 
   const handleReset = () => {
     if (window.confirm("Are you sure you want to PERMANENTLY clear all local data? This cannot be undone.")) {
@@ -98,18 +100,40 @@ export default function Navbar() {
           aria-label="Profile and Settings"
         >
           <div className={styles.avatar}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+            {currentUser.avatar ? (
+              <img src={currentUser.avatar} alt={currentUser.name} className={styles.avatarImg} />
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            )}
           </div>
         </button>
 
         {isProfileOpen && (
           <div className={styles.dropdown}>
             <div className={styles.dropdownHeader}>
-              <p className={styles.userName}>Yash Behera</p>
-              <p className={styles.userPlan}>Founder & Expert Plan</p>
+              <p className={styles.userName}>{currentUser.name}</p>
+              <p className={styles.userPlan}>{currentUser.role}</p>
+            </div>
+
+            <div className={styles.dropdownDivider}></div>
+
+            <div className={styles.personaSection}>
+              <p className={styles.sectionTitle}>Switch Persona (Mock Auth)</p>
+              <div className={styles.personaGrid}>
+                {availableUsers.map(user => (
+                  <button 
+                    key={user.id}
+                    className={`${styles.personaBtn} ${currentUser.id === user.id ? styles.personaBtnActive : ""}`}
+                    onClick={() => setCurrentUser(user.id)}
+                  >
+                    <img src={user.avatar} alt={user.name} />
+                    <span>{user.name.split(" ")[1]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className={styles.usageSection}>

@@ -189,16 +189,78 @@
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  width: 32px;
+  height: 32px;
+  background-color: #f3f4f6;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  color: #6b7280;
+  overflow: hidden;
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.personaSection {
+  padding: 12px 16px;
+}
+
+.sectionTitle {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.personaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.personaBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.personaBtn img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.personaBtn span {
+  font-size: 11px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.personaBtnActive {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.personaBtnActive span {
+  color: #1d4ed8;
+}
+
+.personaBtn:hover:not(.personaBtnActive) {
+  background-color: #f9fafb;
 }
 
 .dropdown {

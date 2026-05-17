@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from "react"
 import { useDocumentStore } from "./store/documentStore"
 import { blockTreeToProseMirror } from "./editor/blockToProseMirror"
 import type { BlockNode, Span } from "./store/documentTypes"
-export type RightPanelTab = "ai-chat" | "placeholders" | "format-builder";
+export type RightPanelTab = "ai-chat" | "placeholders" | "format-builder" | "comments" | "activity";
 import type { ChatHistoryItem } from "./tabs/AiChat"
 import { useUsageStore, estimateTokens } from "@/store/usageStore"
 
@@ -41,6 +41,8 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
     ...rawDraft,
     margins: { ...DEFAULT_DRAFT_STATE.margins, ...rawDraft.margins },
     typography: { ...DEFAULT_DRAFT_STATE.typography, ...rawDraft.typography },
+    comments: rawDraft.comments || [],
+    activityLog: rawDraft.activityLog || [],
   };
 
   const editor = useDocumentStore(state => state.editor)
