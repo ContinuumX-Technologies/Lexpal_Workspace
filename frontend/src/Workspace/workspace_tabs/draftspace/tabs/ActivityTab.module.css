@@ -1,0 +1,168 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+}
+
+.logHeader {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.headerIcon {
+  color: #616161;
+}
+
+.headerTitle {
+  font-size: 10px;
+  font-weight: 700;
+  color: #616161;
+  letter-spacing: 0.8px;
+}
+
+.logList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.activityItem {
+  display: flex;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background 0.1s ease;
+  position: relative;
+}
+
+.activityItem:hover {
+  background: #f8fafc;
+}
+
+.statusBadge {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.details {
+  flex: 1;
+  min-width: 0;
+}
+
+.headerInfo {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.userName {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.actionType {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.timestamp {
+  margin-left: auto;
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: 'Inter', sans-serif;
+}
+
+.diffContainer {
+  margin-top: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.diffLine {
+  display: flex;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.diffAdd {
+  background-color: #e6ffec;
+  color: #1e7e34;
+}
+
+.diffRemove {
+  background-color: #ffeef0;
+  color: #cb2431;
+}
+
+.diffGutter {
+  width: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+  user-select: none;
+  font-size: 12px;
+}
+
+.diffAdd .diffGutter {
+  color: #28a745;
+}
+
+.diffRemove .diffGutter {
+  color: #d73a49;
+}
+
+.diffCode {
+  padding: 4px 10px;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: inherit;
+}
+
+.detailsBox {
+  margin-top: 2px;
+}
+
+.detailText {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 0 32px;
+  line-height: 1.6;
+}

@@ -46,6 +46,7 @@
 }
 
 .editorSurface {
+  position: relative;
   width: 100%;
   min-height: calc(var(--page-height, 1123px) - var(--margin-top, 96px) - var(--margin-bottom, 96px));
   /* ← no flex, no height: auto, just block with min-height */
@@ -55,6 +56,48 @@
   padding-left: var(--margin-left, 96px);
   padding-right: var(--margin-right, 96px);
 }
+
+.readOnlyBadge {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(229, 231, 235, 0.5);
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    inset 0 0 20px rgba(255, 255, 255, 0.5);
+  color: #4b5563;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 50;
+  transition: all 0.3s ease;
+  animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.readOnlyBadge :global(.material-symbols-outlined) {
+  font-size: 18px;
+  color: #f59e0b; /* Warning amber instead of harsh red */
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 
 .editorSurface :global(.tiptap) {
   outline: none;
@@ -70,14 +113,47 @@
   margin: 0 0 0.5em 0;
 }
 
-.editorSurface :global(.tiptap h1),
-.editorSurface :global(.tiptap h2),
-.editorSurface :global(.tiptap h3),
-.editorSurface :global(.tiptap h4),
-.editorSurface :global(.tiptap h5),
+.editorSurface :global(.tiptap h1) {
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  margin: 12px 0 8px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h2) {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  margin: 10px 0 6px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h3) {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 8px 0 4px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h4) {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 6px 0 4px 0 !important;
+  display: block !important;
+}
+.editorSurface :global(.tiptap h5) {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 4px 0 2px 0 !important;
+  display: block !important;
+}
 .editorSurface :global(.tiptap h6) {
-  margin: 0.8em 0 0.4em 0;
-  line-height: 1.3;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 4px 0 2px 0 !important;
+  display: block !important;
 }
 
 /* Page break node */
@@ -91,7 +167,6 @@
   position: relative;
   page-break-after: always;
   break-after: page;
-  contenteditable: false;
   pointer-events: none;
   user-select: none;
 }
@@ -150,4 +225,35 @@
 }
 .editorSurface :global(.tiptap .clause) {
   margin-bottom: 12pt;
+}
+
+/* List Styles */
+.editorSurface :global(.tiptap ul),
+.editorSurface :global(.tiptap ol) {
+  padding-left: 32px;
+  margin: 12px 0;
+}
+
+.editorSurface :global(.tiptap ul) {
+  list-style-type: disc;
+}
+
+.editorSurface :global(.tiptap ol) {
+  list-style-type: decimal;
+}
+
+/* Allow ordered list type attribute to override default (for a., i., etc) */
+.editorSurface :global(.tiptap ol[type="a"]) {
+  list-style-type: lower-alpha;
+}
+.editorSurface :global(.tiptap ol[type="i"]) {
+  list-style-type: lower-roman;
+}
+
+.editorSurface :global(.tiptap li) {
+  margin-bottom: 4px;
+}
+
+.editorSurface :global(.tiptap li > p) {
+  margin: 0;
 }

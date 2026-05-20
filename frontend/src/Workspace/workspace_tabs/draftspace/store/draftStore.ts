@@ -16,6 +16,24 @@ export interface Message {
   timestamp: string; // ISO string for persistence
 }
 
+export interface Comment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface Activity {
+  id: string;
+  userId: string;
+  userName: string;
+  type: 'edit' | 'comment' | 'assign' | 'create';
+  description: string;
+  details?: string; // optional short summary of what changed
+  timestamp: string;
+}
+
 export interface Margins {
   top: number;
   bottom: number;
@@ -35,6 +53,9 @@ export interface DraftState {
     lineHeight: number;
   };
   activeTab: string;
+  assignedTo?: string; // User ID
+  comments: Comment[];
+  activityLog: Activity[];
 }
 
 interface DraftStore {
@@ -47,6 +68,9 @@ interface DraftStore {
   deleteDraft: (draftId: string) => void;
   updateDraft: (draftId: string, updates: Partial<DraftState>) => void;
   getDraft: (draftId: string) => DraftState;
+  assignDraft: (draftId: string, userId: string, userName: string, adminName: string, adminId: string) => void;
+  addComment: (draftId: string, comment: Omit<Comment, 'id' | 'timestamp'>) => void;
+  addActivity: (draftId: string, activity: Omit<Activity, 'id' | 'timestamp'>) => void;
 }
 
 const DEFAULT_MARGINS: Margins = { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 };
@@ -71,6 +95,8 @@ export const DEFAULT_DRAFT_STATE: DraftState = {
     lineHeight: 1.6,
   },
   activeTab: "format-builder",
+  comments: [],
+  activityLog: [],
 };
 
 export const useDraftStore = create<DraftStore>()(
@@ -132,6 +158,91 @@ export const useDraftStore = create<DraftStore>()(
         }),
 
       getDraft: (draftId) => get().drafts[draftId] || DEFAULT_DRAFT_STATE,
+
+      assignDraft: (draftId, userId, userName, adminName, adminId) => 
+        set((state) => {
+          const current = state.drafts[draftId];
+          if (!current) return state;
+
+          const newActivity: Activity = {
+            id: crypto.randomUUID(),
+            userId: adminId,
+            userName: adminName,
+            type: 'assign',
+            description: `Assigned draft to ${userName}`,
+            timestamp: new Date().toISOString()
+          };
+
+          return {
+            drafts: {
+              ...state.drafts,
+              [draftId]: { 
+                ...current, 
+                assignedTo: userId, 
+                activityLog: [newActivity, ...(current.activityLog || [])].slice(0, 50),
+                updatedAt: new Date().toISOString() 
+              }
+            }
+          };
+        }),
+
+      addComment: (draftId, comment) =>
+        set((state) => {
+          const current = state.drafts[draftId];
+          if (!current) return state;
+          const newComment: Comment = {
+            ...comment,
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString()
+          };
+          return {
+            drafts: {
+              ...state.drafts,
+              [draftId]: {
+                ...current,
+                comments: [...(current.comments || []), newComment],
+                activityLog: [{
+                  id: crypto.randomUUID(),
+                  userId: comment.authorId,
+                  userName: comment.authorName,
+                  type: 'comment' as const,
+                  description: `Added a comment: "${comment.text.substring(0, 30)}${comment.text.length > 30 ? '...' : ''}"`,
+                  timestamp: new Date().toISOString()
+                } as Activity, ...(current.activityLog || [])].slice(0, 50),
+                updatedAt: new Date().toISOString()
+              }
+            }
+          };
+        }),
+
+      addActivity: (draftId, activity) =>
+        set((state) => {
+          const current = state.drafts[draftId];
+          if (!current) return state;
+          
+          const newActivity: Activity = {
+            id: crypto.randomUUID(),
+            userId: activity.userId,
+            userName: activity.userName,
+            type: activity.type as any, // Cast to any to satisfy the union if coming from partial
+            description: activity.description,
+            details: (activity as any).details,
+            timestamp: new Date().toISOString()
+          };
+
+          // Limit log to last 50 items to keep storage clean
+          const newLog = [newActivity, ...(current.activityLog || [])].slice(0, 50);
+
+          return {
+            drafts: {
+              ...state.drafts,
+              [draftId]: {
+                ...current,
+                activityLog: newLog
+              }
+            }
+          };
+        }),
     }),
     {
       name: 'lexpal-draftspace-storage',

@@ -1,136 +1,202 @@
 .leftPanel {
-  width: 0;
-  min-width: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 2000;
+  width: 320px;
   height: 100%;
-  background: rgba(10, 10, 12, 0.98);
-  backdrop-filter: blur(12px);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(25px) saturate(200%);
+  -webkit-backdrop-filter: blur(25px) saturate(200%);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
+  box-shadow: 15px 0 50px rgba(0, 0, 0, 0.6);
 
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(-100%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
 .leftPanel.open {
-  width: 280px;
+  transform: translateX(0);
 }
 
 .content {
-  padding: 24px;
+  padding: 32px 20px;
   height: 100%;
   overflow-y: auto;
-  width: 280px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Custom Scrollbar */
+.content::-webkit-scrollbar {
+  width: 4px;
+}
+.content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 }
 
 .sectionHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  padding: 0 4px;
 }
 
 .sectionHeader h3 {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.35);
   margin: 0;
 }
 
 .newDraftBtn {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #3b82f6; /* Brand Blue */
   cursor: pointer;
-  padding: 4px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s;
+  border-radius: 50%;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .newDraftBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(59, 130, 246, 0.15);
+  transform: scale(1.1);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
-.newDraftBtn span {
-  font-size: 16px;
+.newDraftBtn:active {
+  transform: scale(0.9);
 }
 
 .divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  margin: 24px 0;
-}
-
-
-
-.content p {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.3);
-  margin: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+  margin: 4px 0;
 }
 
 .pinnedList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 4px;
 }
 
 .pinnedItem {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  gap: 8px;
+  padding: 12px 14px;
+  background: transparent;
+  border-radius: 12px;
+  gap: 12px;
   transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
 }
 
 .pinnedItem:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
-  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .activeDraft {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+
+.activeDraft::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 2px;
+  background: #3b82f6;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+.activeDraft .pinnedItemTitle {
+  color: #3b82f6 !important;
 }
 
 .pinnedItemMain {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 .pinnedItemTitle {
-  font-size: 13px !important;
+  font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9) !important;
-  line-height: 1.5 !important;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pinnedItemMeta {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
 }
 
-.pinnedItemCourt {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
-  padding: 2px 6px;
+.pinnedItemCourt, .pinnedItemYear {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 400;
+}
+
+.assignmentBadge {
+  font-size: 9px;
+  font-weight: 600;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 1px 6px;
   border-radius: 4px;
-  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.draftActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.pinnedItem:hover .draftActions {
+  opacity: 1;
+}
+
+.assignSelect {
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.assignSelect:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .unpinBtn {
@@ -147,8 +213,8 @@
 }
 
 .unpinBtn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
 }
 
 .unpinBtn span {

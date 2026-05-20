@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 // ─── App state machine ────────────────────────────────────────────────────────
 export type AppState = "idle" | "loading" | "results" | "reloading" | "loadingMore";
+export type SearchSource = "public" | "firm";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,8 @@ interface JDSearchContextValue {
   selectedCase: CaseResult | null;
   previewLoading: boolean;
   pinnedCases: PinnedCase[];
+  searchSource: SearchSource;
+  setSearchSource: (val: SearchSource) => void;
   
   // filters
   jurisdiction: string;
@@ -172,8 +175,12 @@ async function fetchCaseDetail(id: string, item?: JudgmentListItem): Promise<Cas
 }
 
 // ─── Real search API call ──────────────────────────────────────────────────────
-async function callSearchApi(body: Record<string, unknown>): Promise<SearchApiResponse> {
-  const res = await fetch("http://localhost:3001/api/judgements/search", {
+async function callSearchApi(body: Record<string, unknown>, source: SearchSource): Promise<SearchApiResponse> {
+  const url = source === "public" 
+    ? "http://localhost:3001/api/judgements/search"
+    : "http://localhost:3001/api/firm-precedents/search";
+    
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -195,6 +202,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
   const [selectedCase, setSelectedCase] = useState<CaseResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [pinnedCases, setPinnedCases] = useState<PinnedCase[]>([]);
+  const [searchSource, setSearchSource] = useState<SearchSource>("public");
   const { caseId } = useParams<{ caseId: string }>();
 
   const [jurisdiction, setJurisdiction] = useState<string>("");
@@ -242,10 +250,10 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
       const data = await callSearchApi({ 
         query: q, 
         ...getFilterParams() 
-      });
+      }, searchSource);
       const ids = data.results.map((r) => r.judgement_db_id);
       setListItems(data.results);
-      setReframedQuery(data.reframedQuery);
+      setReframedQuery(data.reframedQuery || "");
       setHasMore(data.hasMore);
       setSeenIds(ids);
       setAppState("results");
@@ -253,7 +261,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
       console.error(err);
       setAppState("results");
     }
-  }, [getFilterParams]);
+  }, [getFilterParams, searchSource]);
 
   // ── Refine search (sidebar re-query) ───────────────────────────────────────
   const refineSearch = useCallback(async (q: string) => {
@@ -268,10 +276,10 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
       const data = await callSearchApi({ 
         query: q, 
         ...getFilterParams() 
-      });
+      }, searchSource);
       const ids = data.results.map((r) => r.judgement_db_id);
       setListItems(data.results);
-      setReframedQuery(data.reframedQuery);
+      setReframedQuery(data.reframedQuery || "");
       setHasMore(data.hasMore);
       setSeenIds(ids);
       setAppState("results");
@@ -279,7 +287,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
       console.error(err);
       setAppState("results");
     }
-  }, [getFilterParams]);
+  }, [getFilterParams, searchSource]);
 
   // ── Load more ───────────────────────────────────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -291,10 +299,10 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
         reframedQuery, 
         excludeIds: seenIds,
         ...getFilterParams()
-      });
+      }, searchSource);
       const newIds = data.results.map((r) => r.judgement_db_id);
       setListItems((prev) => [...prev, ...data.results]);
-      setReframedQuery(data.reframedQuery);
+      setReframedQuery(data.reframedQuery || "");
       setHasMore(data.hasMore);
       setSeenIds((prev) => [...prev, ...newIds]);
       setAppState("results");
@@ -302,7 +310,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
       console.error(err);
       setAppState("results");
     }
-  }, [appState, hasMore, reframedQuery, seenIds, getFilterParams]);
+  }, [appState, hasMore, reframedQuery, seenIds, getFilterParams, searchSource]);
 
   // ── Select a judgment → fetch detail ───────────────────────────────────────
   const selectJudgment = useCallback((item: JudgmentListItem) => {
@@ -342,6 +350,8 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
         loadMore,
         selectJudgment,
         togglePin,
+        searchSource,
+        setSearchSource,
       }}
     >
       {children}
