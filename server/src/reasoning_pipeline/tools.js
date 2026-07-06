@@ -43,8 +43,10 @@ export async function lookupLaw({ act_name, section_no }) {
 
   const res = await collection.get({
     where: {
-      act_name,
-      section_no
+      $and: [
+        { act_name: { $eq: act_name } },
+        { section_no: { $eq: section_no } }
+      ]
     },
     include: ["documents", "metadatas"],
     limit: 5
@@ -71,13 +73,16 @@ export async function lookupLaw({ act_name, section_no }) {
 export async function getLaw({ act_name, chapter_name }) {
   const collection = await getOrCreateChromaCollection(COLLECTION);
 
-  const where = {
-    act_name
-  };
-
-  if (chapter_name) {
-    where.chapter_name = chapter_name;
-  }
+  const where = chapter_name
+    ? {
+        $and: [
+          { act_name: { $eq: act_name } },
+          { chapter_name: { $eq: chapter_name } }
+        ]
+      }
+    : {
+        act_name: { $eq: act_name }
+      };
 
   const res = await collection.get({
     where,

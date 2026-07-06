@@ -15,12 +15,12 @@ import TableHeader from '@tiptap/extension-table-header'
 import { PageBreak } from './PageBreakExtension'
 import { FontSize } from './FontSizeExtension'
 import { OrderedListStyled } from './OrderedListStyled'
-import { BlockId } from './editor/blockIdPlugin'
-import { blockTreeToProseMirror } from './editor/blockToProseMirror'
-import { proseMirrorToBlocks } from './editor/proseMirrorToBlocks'
+
+import { DraftMetadataExtension } from './editor_extensions/draftMetadata'
 
 import { useDocumentStore } from './store/documentStore'
 import { useDraftStore } from './store/draftStore'
+import type { ProseMirrorJsonNode } from './store/draftStore'
 import { useDraftspace } from './Draftspace.context'
 import { useUserStore, USERS } from '@/store/userStore'
 import { useRef, useEffect } from 'react'
@@ -28,6 +28,25 @@ import type { CSSProperties } from 'react'
 import MenuBar from './MenuBar'
 import styles from './Editor.module.css'
 import './EditorBlockHighlight.css'
+
+const EMPTY_DOC: ProseMirrorJsonNode = {
+  type: 'doc',
+  content: [{ type: 'paragraph' }],
+}
+
+const extractAllTextFromProseMirror = (node: ProseMirrorJsonNode | null | undefined): string => {
+  if (!node) return ''
+
+  if (typeof node.text === 'string') {
+    return node.text
+  }
+
+  if (!Array.isArray(node.content)) {
+    return ''
+  }
+
+  return node.content.map(extractAllTextFromProseMirror).join('\n')
+}
 
 const Tiptap = () => {
 
@@ -42,16 +61,23 @@ const Tiptap = () => {
 
   const draftId = useDraftStore(state => state.activeDraftId);
   const currentDraft = useDraftStore(state => state.drafts[draftId]);
-  const blockTree = currentDraft?.blockTree ?? null;
+  const prosemirrorJson = currentDraft?.prosemirrorJson ?? null;
   const updateDraft = useDraftStore(state => state.updateDraft);
   const addActivity = useDraftStore(state => state.addActivity);
   const { currentUser } = useUserStore();
-  const baselineTreeRef = useRef<any>(null);
+  const baselineDocRef = useRef<ProseMirrorJsonNode | null>(null);
   const debounceTimerRef = useRef<any>(null);
+  const draftIdRef = useRef(draftId);
+  const userRef = useRef(currentUser);
 
   const isSenior = currentUser.role === "Senior Advocate";
   const isAssigned = currentDraft?.assignedTo === currentUser.id;
   const canEdit = isSenior || isAssigned;
+
+  useEffect(() => {
+    draftIdRef.current = draftId;
+    userRef.current = currentUser;
+  }, [draftId, currentUser]);
 
   // Cleanup debounce on unmount
   useEffect(() => {
@@ -59,6 +85,8 @@ const Tiptap = () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, []);
+
+  console.log("Initial PM JSON:", prosemirrorJson);// dev log to get initial draft pm json object
 
   const editor = useEditor({
     extensions: [
@@ -83,45 +111,27 @@ const Tiptap = () => {
         types: ['heading', 'paragraph'],
       }),
       PageBreak,
-      BlockId,
+      
+      DraftMetadataExtension
     ],
 
-    content: blockTree ? blockTreeToProseMirror(blockTree) : '<p>Hello World!</p>',
+    content: prosemirrorJson ?? EMPTY_DOC,
 
     onUpdate: ({ editor }) => {
-      const json = editor.getJSON() as any;
-      const newTree = proseMirrorToBlocks(json);
-      
-      // Update the persistent store immediately for real-time sync
-      updateDraft(draftId, { blockTree: newTree });
+      const json = editor.getJSON() as ProseMirrorJsonNode;
+      const activeDraftId = draftIdRef.current;
+
+      // Persist ProseMirror JSON as source of truth
+      updateDraft(activeDraftId, { prosemirrorJson: json });
 
       // If we don't have a baseline for this typing session, set it now
-      if (!baselineTreeRef.current) {
-        baselineTreeRef.current = useDraftStore.getState().drafts[draftId]?.blockTree ?? null;
+      if (!baselineDocRef.current) {
+        baselineDocRef.current = useDraftStore.getState().drafts[activeDraftId]?.prosemirrorJson ?? null;
       }
 
-      const summarizeChange = (oldTree: any, newTree: any) => {
-        const extractAllText = (node: any): string => {
-          if (!node) return '';
-          let text = '';
-          
-          if (node.content && Array.isArray(node.content)) {
-            for (const span of node.content) {
-              if (span.text) text += span.text;
-            }
-          }
-          
-          if (node.children && Array.isArray(node.children)) {
-            for (const child of node.children) {
-              text += '\n' + extractAllText(child);
-            }
-          }
-          
-          return text;
-        };
-
-        const oldText = extractAllText(oldTree).trim();
-        const newText = extractAllText(newTree).trim();
+      const summarizeChange = (oldDoc: ProseMirrorJsonNode | null, newDoc: ProseMirrorJsonNode | null) => {
+        const oldText = extractAllTextFromProseMirror(oldDoc).trim();
+        const newText = extractAllTextFromProseMirror(newDoc).trim();
 
         if (oldText === newText) return '';
 
@@ -180,22 +190,23 @@ const Tiptap = () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       
       debounceTimerRef.current = setTimeout(() => {
-        const currentBaseline = baselineTreeRef.current;
-        const latestTree = useDraftStore.getState().drafts[draftId]?.blockTree ?? null;
+        const activeDraftId = draftIdRef.current;
+        const currentBaseline = baselineDocRef.current;
+        const latestDoc = useDraftStore.getState().drafts[activeDraftId]?.prosemirrorJson ?? null;
         
-        const summary = summarizeChange(currentBaseline, latestTree);
+        const summary = summarizeChange(currentBaseline, latestDoc);
         
         if (summary) {
-          addActivity(draftId, {
-            userId: currentUser.id,
-            userName: currentUser.name,
+          addActivity(activeDraftId, {
+            userId: userRef.current.id,
+            userName: userRef.current.name,
             type: 'edit' as const,
             description: 'Updated document content',
             details: summary
           });
           
           // After logging, the current state becomes the new baseline
-          baselineTreeRef.current = latestTree;
+          baselineDocRef.current = latestDoc;
         }
       }, 3000); // Wait for 3 seconds of inactivity
     },
@@ -207,6 +218,11 @@ const Tiptap = () => {
 
       for (let depth = $from.depth; depth >= 0; depth--) {
         const node = $from.node(depth)
+
+        if (node.attrs?.lexpalId) {
+          foundId = node.attrs.lexpalId
+          break
+        }
 
         if (node.attrs?.blockId) {
           foundId = node.attrs.blockId
@@ -239,13 +255,10 @@ const Tiptap = () => {
   // Sync editor content when draftId changes
   useEffect(() => {
     if (!editor) return;
-    
-    // Check if the current editor content is different from the blockTree
-    // A simple way is just to set content when draftId changes
-    const content = blockTree ? blockTreeToProseMirror(blockTree) : '<p></p>';
-    
-    // We only want to replace content if we just switched drafts
-    editor.commands.setContent(content);
+
+    const content = useDraftStore.getState().drafts[draftId]?.prosemirrorJson ?? EMPTY_DOC;
+    editor.commands.setContent(content, { emitUpdate: false });
+    baselineDocRef.current = content;
   }, [draftId, editor]);
 
 

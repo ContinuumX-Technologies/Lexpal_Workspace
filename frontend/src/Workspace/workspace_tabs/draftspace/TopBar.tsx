@@ -15,11 +15,11 @@ import { useDraftStore } from "./store/draftStore";
 import styles from "./TopBar.module.css";
 
 const ACTIVE_TAB_LABEL: Record<RightPanelTab, string> = {
-    "ai-chat": "AI Chat",
+    "ai-task-manager": "Draft Agent",
     "placeholders": "Placeholders",
     "format-builder": "Format Builder",
     "comments": "Comments",
-    "activity": "Activity Log",
+    "activity": "Activity",
 };
 
 export default function TopBar() {
@@ -42,7 +42,7 @@ export default function TopBar() {
     }, [lastActivity, now]);
 
     const navItems = [
-        { name: "AI Chat", icon: MessageSquare, onClick: () => setActiveTab("ai-chat") },
+        { name: "Draft Agent", icon: MessageSquare, onClick: () => setActiveTab("ai-task-manager") },
         { name: "Placeholders", icon: FileText, onClick: () => setActiveTab("placeholders") },
         { name: "Format Builder", icon: LayoutTemplate, onClick: () => setActiveTab("format-builder") },
         { name: "Comments", icon: MessageSquare, onClick: () => setActiveTab("comments") },

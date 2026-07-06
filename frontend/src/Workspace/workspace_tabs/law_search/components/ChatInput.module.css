@@ -1,0 +1,333 @@
+/* ChatInput.module.css - ChatGPT Replica */
+
+.container {
+    width: 100%;
+    max-width: 768px;
+    /* ChatGPT standard width */
+    margin: 0 auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.inputWrapper {
+    background: #f4f4f4;
+    /* Light mode bubble bg */
+    border-radius: 26px;
+    /* Pill shape */
+    padding: 10px 14px;
+    /* Balanced padding */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: background 0.2s, box-shadow 0.2s;
+    border: 1px solid transparent;
+    box-shadow: none;
+    /* Flat by default usually */
+}
+
+/* Dark mode override */
+/* Dark mode override */
+:global(.dark) .inputWrapper {
+    background: #2f2f2f;
+    /* ChatGPT Dark Input */
+}
+
+.inputWrapper:focus-within {
+    /* Slight variation or shadow if needed, but ChatGPT is quite flat */
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+:global(.dark) .inputWrapper:focus-within {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Context Chips (Internal) */
+.contextChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 4px;
+}
+
+.chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #e5e5e5;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #333;
+}
+
+.chipInfo {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+.chipError {
+    color: #dc2626;
+}
+
+:global(.dark) .chip {
+    background: #424242;
+    color: #ececec;
+}
+
+.chipName {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip :global(.chipIcon) {
+    font-size: 16px;
+    color: inherit;
+    opacity: 0.7;
+}
+
+.removeChip {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: inherit;
+    opacity: 0.5;
+}
+
+.removeChip:hover {
+    opacity: 1;
+}
+
+.attachmentError {
+    margin: 0 4px;
+    font-size: 12px;
+    color: #dc2626;
+}
+
+.spinner {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.15);
+    border-top-color: rgba(0, 0, 0, 0.7);
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Input Row */
+.inputRow {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.attachBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #666;
+    /* Muted icon */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+    margin-bottom: 2px;
+}
+
+.attachBtn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #000;
+}
+
+:global(.dark) .attachBtn {
+    color: #b4b4b4;
+}
+
+:global(.dark) .attachBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    resize: none;
+    padding: 6px 0;
+    /* Align with buttons */
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.5;
+    outline: none;
+    max-height: 200px;
+    /* Allow nice expansion */
+    overflow-y: auto;
+    color: #0d0d0d;
+}
+
+:global(.dark) .input {
+    color: #ececec;
+}
+
+:global(.dark) .chipError,
+:global(.dark) .attachmentError {
+    color: #f87171;
+}
+
+:global(.dark) .spinner {
+    border-color: rgba(255, 255, 255, 0.22);
+    border-top-color: rgba(255, 255, 255, 0.8);
+}
+
+:global(.dark) .input::placeholder {
+    color: #8e8e8e;
+}
+
+/* Send Button */
+.sendBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #000;
+    /* Black send button in light mode */
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s;
+    margin-bottom: 2px;
+}
+
+:global(.dark) .sendBtn {
+    background: #fff;
+    /* White send button in dark mode */
+    color: #000;
+}
+
+.sendBtn:disabled {
+    background: #e5e5e5;
+    color: #b4b4b4;
+    cursor: default;
+}
+
+:global(.dark) .sendBtn:disabled {
+    background: #424242;
+    color: #666;
+}
+
+/* Stop Button */
+.stopBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #000;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.8;
+}
+
+.stopBtn:hover {
+    opacity: 1;
+}
+
+:global(.dark) .stopBtn {
+    background: #fff;
+    color: #000;
+}
+
+/* Reasoning Mode Button */
+.reasoningBtn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: transparent;
+    color: #8e8e93;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-bottom: 2px;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    font-family: inherit;
+}
+
+.reasoningBtn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1d1d1f;
+    border-color: rgba(0, 0, 0, 0.18);
+}
+
+.reasoningActive {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.reasoningActive:hover {
+    background: rgba(99, 102, 241, 0.15);
+    color: #4f46e5;
+}
+
+.reasoningLabel {
+    line-height: 1;
+}
+
+:global(.dark) .reasoningBtn {
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #636366;
+}
+
+:global(.dark) .reasoningBtn:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #ebebf5;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+:global(.dark) .reasoningActive {
+    background: rgba(129, 140, 248, 0.15);
+    border-color: rgba(129, 140, 248, 0.4);
+    color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.1);
+}
+
+:global(.dark) .reasoningActive:hover {
+    background: rgba(129, 140, 248, 0.2);
+    color: #a5b4fc;
+}
+
+/* Footer Note */
+.footerNote {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin-top: 8px;
+}
+
+:global(.dark) .footerNote {
+    color: #666;
+}

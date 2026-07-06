@@ -1,0 +1,255 @@
+.popover {
+    position: absolute;
+    bottom: 80px;
+    /* Above the input bar */
+    left: 20px;
+    width: 320px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    overflow: hidden;
+    animation: slideUp 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.header {
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.closeBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.closeBtn:hover {
+    opacity: 1;
+}
+
+.tabs {
+    display: flex;
+    padding: 4px;
+    background: #f5f5f7;
+    margin: 12px;
+    border-radius: 8px;
+}
+
+.tab {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.activeTab {
+    background: white;
+    color: #000;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 0 8px 8px;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+}
+
+.item:hover {
+    background: #f5f5f7;
+}
+
+.itemSelected {
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.iconWrap {
+    width: 32px;
+    height: 32px;
+    background: #eee;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}
+
+.itemMeta {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.itemName {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.itemInfo {
+    font-size: 12px;
+    color: #999;
+}
+
+.loading {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-size: 13px;
+}
+
+.itemError {
+    color: #dc2626;
+}
+
+.errorText {
+    margin: 8px 6px;
+    font-size: 12px;
+    color: #dc2626;
+}
+
+.fileInput {
+    display: none;
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.15);
+    border-top-color: rgba(0, 0, 0, 0.7);
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.uploadArea {
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    background: transparent;
+    width: 100%;
+}
+
+.uploadArea:hover {
+    background: #fafafa;
+    border-color: #999;
+}
+
+/* Dark Mode Updates for ChatGPT Theme */
+:global(.dark) .popover {
+    background: #2f2f2f;
+    /* ChatGPT Menu Dark */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+:global(.dark) .header {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:global(.dark) .title,
+:global(.dark) .itemName {
+    color: #fff;
+}
+
+:global(.dark) .tabs {
+    background: #171717;
+    /* Darker bg for tabs container */
+}
+
+:global(.dark) .tab {
+    color: #aaa;
+}
+
+:global(.dark) .activeTab {
+    background: #424242;
+    /* Lighter active tab */
+    color: #fff;
+}
+
+:global(.dark) .item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+:global(.dark) .itemSelected {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+:global(.dark) .iconWrap {
+    background: #333;
+    color: #ccc;
+}
+
+:global(.dark) .uploadArea {
+    border-color: #444;
+    color: #aaa;
+}
+
+:global(.dark) .uploadArea:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+:global(.dark) .itemError,
+:global(.dark) .errorText {
+    color: #f87171;
+}
+
+:global(.dark) .spinner {
+    border-color: rgba(255, 255, 255, 0.22);
+    border-top-color: rgba(255, 255, 255, 0.8);
+}

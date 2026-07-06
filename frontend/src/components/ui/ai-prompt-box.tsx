@@ -1,33 +1,98 @@
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowUp, Paperclip, Square, X, StopCircle, Mic, Globe, BrainCog, FolderCode } from "lucide-react";
+import {
+  ArrowUp,
+  Paperclip,
+  Square,
+  X,
+  StopCircle,
+  Mic,
+  Globe,
+  BrainCog,
+  Loader2,
+  FileText,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import parseFileToText from "../../Workspace/utils/parseFileToText.util";
+import AttachmentManager from "./AttachmentManager";
 
-// Utility function for className merging
-const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(" ");
+import { useUploadedFiles, type UploadedFileMeta } from "../../Workspace/contexts/upload_files.context";
 
-// Textarea Component
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  input_text: string;
+  attached_files: {
+    file_id: string;
+    file_title: string;
+    text_content: string;
+  }[];
+  options: {
+    webSearch: boolean;
+    thinking: boolean;
+  };
+}
+
+export type AttachmentParseStatus = "parsing" | "ready" | "error";
+
+/**
+ * All attachment metadata + parse state in one place.
+ * Replaces the previous triple of parsedTexts / parseErrors / parsingIds Maps.
+ */
+export type SelectedAttachment = {
+  id: string;
+  file_name: string;
+  size: number;
+  parse_status: AttachmentParseStatus;
+  text_content: string | null;
+  error: string | null;
+};
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utility
+// ─────────────────────────────────────────────────────────────────────────────
+
+const cn = (...classes: (string | undefined | null | false)[]) =>
+  classes.filter(Boolean).join(" ");
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Textarea
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface TextareaProps
+  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   className?: string;
 }
-const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
-  <textarea
-    className={cn(
-      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-base text-gray-100 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none scrollbar-thin scrollbar-thumb-[#444444] scrollbar-track-transparent hover:scrollbar-thumb-[#555555]",
-      className
-    )}
-    ref={ref}
-    rows={1}
-    {...props}
-  />
-));
+
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, ...props }, ref) => (
+    <textarea
+      className={cn(
+        "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-base text-gray-100 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none scrollbar-thin scrollbar-thumb-[#444444] scrollbar-track-transparent hover:scrollbar-thumb-[#555555]",
+        className
+      )}
+      ref={ref}
+      rows={1}
+      {...props}
+    />
+  )
+);
 Textarea.displayName = "Textarea";
 
-// Tooltip Components
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tooltip
+// ─────────────────────────────────────────────────────────────────────────────
+
 const TooltipProvider = TooltipPrimitive.Provider;
 const Tooltip = TooltipPrimitive.Root;
 const TooltipTrigger = TooltipPrimitive.Trigger;
+
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
@@ -44,65 +109,16 @@ const TooltipContent = React.forwardRef<
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
-// Dialog Components
-const Dialog = DialogPrimitive.Root;
-const DialogPortal = DialogPrimitive.Portal;
-const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className
-    )}
-    {...props}
-  />
-));
-DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-[90vw] md:max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 border border-[#333333] bg-[#1F2023] p-0 shadow-xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-full bg-[#2E3033]/80 p-2 hover:bg-[#2E3033] transition-all">
-        <X className="h-5 w-5 text-gray-200 hover:text-white" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
-DialogContent.displayName = DialogPrimitive.Content.displayName;
+// ─────────────────────────────────────────────────────────────────────────────
+// Button
+// ─────────────────────────────────────────────────────────────────────────────
 
-const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    className={cn("text-lg font-semibold leading-none tracking-tight text-gray-100", className)}
-    {...props}
-  />
-));
-DialogTitle.displayName = DialogPrimitive.Title.displayName;
-
-// Button Component
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
 }
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "default", size = "default", ...props }, ref) => {
     const variantClasses = {
@@ -132,13 +148,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
-// VoiceRecorder Component
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VoiceRecorder (untouched)
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface VoiceRecorderProps {
   isRecording: boolean;
   onStartRecording: () => void;
   onStopRecording: (duration: number) => void;
   visualizerBars?: number;
 }
+
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   isRecording,
   onStartRecording,
@@ -163,7 +184,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isRecording, time, onStartRecording, onStopRecording]);
+  }, [isRecording]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -199,36 +220,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   );
 };
 
-// ImageViewDialog Component
-interface ImageViewDialogProps {
-  imageUrl: string | null;
-  onClose: () => void;
-}
-const ImageViewDialog: React.FC<ImageViewDialogProps> = ({ imageUrl, onClose }) => {
-  if (!imageUrl) return null;
-  return (
-    <Dialog open={!!imageUrl} onOpenChange={onClose}>
-      <DialogContent className="p-0 border-none bg-transparent shadow-none max-w-[90vw] md:max-w-[800px]">
-        <DialogTitle className="sr-only">Image Preview</DialogTitle>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="relative bg-[#1F2023] rounded-2xl overflow-hidden shadow-2xl"
-        >
-          <img
-            src={imageUrl}
-            alt="Full preview"
-            className="w-full max-h-[80vh] object-contain rounded-2xl"
-          />
-        </motion.div>
-      </DialogContent>
-    </Dialog>
-  );
-};
 
-// PromptInput Context and Components
+// ─────────────────────────────────────────────────────────────────────────────
+// PromptInput context + primitives
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface PromptInputContextType {
   isLoading: boolean;
   value: string;
@@ -237,6 +233,7 @@ interface PromptInputContextType {
   onSubmit?: () => void;
   disabled?: boolean;
 }
+
 const PromptInputContext = React.createContext<PromptInputContextType>({
   isLoading: false,
   value: "",
@@ -245,6 +242,7 @@ const PromptInputContext = React.createContext<PromptInputContextType>({
   onSubmit: undefined,
   disabled: false,
 });
+
 function usePromptInput() {
   const context = React.useContext(PromptInputContext);
   if (!context) throw new Error("usePromptInput must be used within a PromptInput");
@@ -260,10 +258,8 @@ interface PromptInputProps {
   children: React.ReactNode;
   className?: string;
   disabled?: boolean;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDragLeave?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent) => void;
 }
+
 const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
   (
     {
@@ -275,9 +271,6 @@ const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
       onSubmit,
       children,
       disabled = false,
-      onDragOver,
-      onDragLeave,
-      onDrop,
     },
     ref
   ) => {
@@ -305,9 +298,6 @@ const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
               isLoading && "border-red-500/70",
               className
             )}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
           >
             {children}
           </div>
@@ -322,13 +312,10 @@ interface PromptInputTextareaProps {
   disableAutosize?: boolean;
   placeholder?: string;
 }
-const PromptInputTextarea: React.FC<PromptInputTextareaProps & React.ComponentProps<typeof Textarea>> = ({
-  className,
-  onKeyDown,
-  disableAutosize = false,
-  placeholder,
-  ...props
-}) => {
+
+const PromptInputTextarea: React.FC<
+  PromptInputTextareaProps & React.ComponentProps<typeof Textarea>
+> = ({ className, onKeyDown, disableAutosize = false, placeholder, ...props }) => {
   const { value, setValue, maxHeight, onSubmit, disabled } = usePromptInput();
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -363,8 +350,11 @@ const PromptInputTextarea: React.FC<PromptInputTextareaProps & React.ComponentPr
   );
 };
 
-interface PromptInputActionsProps extends React.HTMLAttributes<HTMLDivElement> { }
-const PromptInputActions: React.FC<PromptInputActionsProps> = ({ children, className, ...props }) => (
+const PromptInputActions: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  className,
+  ...props
+}) => (
   <div className={cn("flex items-center gap-2", className)} {...props}>
     {children}
   </div>
@@ -375,6 +365,7 @@ interface PromptInputActionProps extends React.ComponentProps<typeof Tooltip> {
   children: React.ReactNode;
   side?: "top" | "bottom" | "left" | "right";
 }
+
 const PromptInputAction: React.FC<PromptInputActionProps> = ({
   tooltip,
   children,
@@ -387,146 +378,302 @@ const PromptInputAction: React.FC<PromptInputActionProps> = ({
       <TooltipTrigger asChild disabled={disabled}>
         {children}
       </TooltipTrigger>
-      <TooltipContent side={side}>
-        {tooltip}
-      </TooltipContent>
+      <TooltipContent side={side}>{tooltip}</TooltipContent>
     </Tooltip>
   );
 };
 
-// Custom Divider Component
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CustomDivider
+// ─────────────────────────────────────────────────────────────────────────────
+
 const CustomDivider: React.FC = () => (
   <div className="relative h-6 w-[1.5px] mx-1">
     <div
       className="absolute inset-0 bg-linear-to-t from-transparent via-[#9b87f5]/70 to-transparent rounded-full"
       style={{
-        clipPath: "polygon(0% 0%, 100% 0%, 100% 40%, 140% 50%, 100% 60%, 100% 100%, 0% 100%, 0% 60%, -40% 50%, 0% 40%)",
+        clipPath:
+          "polygon(0% 0%, 100% 0%, 100% 40%, 140% 50%, 100% 60%, 100% 100%, 0% 100%, 0% 60%, -40% 50%, 0% 40%)",
       }}
     />
   </div>
 );
 
-// Main PromptInputBox Component
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PromptInputBox
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface PromptInputBoxProps {
-  onSend?: (message: string, files?: File[]) => void;
+  onSend?: (message: ChatMessage) => void;
   isLoading?: boolean;
   placeholder?: string;
-  className?: string;
+  /**
+   * Maximum number of files that can be attached at once.
+   * Defaults to 5. AttachmentManager will block selection beyond this limit
+   * and show an inline error to the user.
+   */
+  maxAttachments?: number;
 }
-export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref: React.Ref<HTMLDivElement>) => {
-  const { onSend = () => { }, isLoading = false, placeholder = "Type your message here...", className } = props;
-  const [input, setInput] = React.useState("");
-  const [files, setFiles] = React.useState<File[]>([]);
-  const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
-  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
-  const [isRecording, setIsRecording] = React.useState(false);
-  const [showSearch, setShowSearch] = React.useState(false);
-  const [showThink, setShowThink] = React.useState(false);
-  const [showCanvas, setShowCanvas] = React.useState(false);
-  const uploadInputRef = React.useRef<HTMLInputElement>(null);
-  const promptBoxRef = React.useRef<HTMLDivElement>(null);
 
-  const handleToggleChange = (value: string) => {
-    if (value === "search") {
-      setShowSearch((prev) => !prev);
-      setShowThink(false);
-    } else if (value === "think") {
-      setShowThink((prev) => !prev);
-      setShowSearch(false);
-    }
-  };
+export const PromptInputBox = React.forwardRef(
+  (props: PromptInputBoxProps, ref: React.Ref<HTMLDivElement>) => {
+    const {
+      onSend = () => { },
+      isLoading = false,
+      placeholder = "Type your message here...",
+      maxAttachments = 5,
+    } = props;
 
-  const handleCanvasToggle = () => setShowCanvas((prev) => !prev);
+    // ── Attachment state ──────────────────────────────────────────────────
+    // Single source of truth: parse_status, text_content and error all live
+    // here instead of in separate Map/Set states.
+    const [selectedAttachments, setSelectedAttachments] = React.useState<SelectedAttachment[]>([]);
 
-  const isImageFile = (file: File) => file.type.startsWith("image/");
+    const { getFile } = useUploadedFiles();
 
-  const processFile = (file: File) => {
-    if (!isImageFile(file)) {
-      console.log("Only image files are allowed");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      console.log("File too large (max 10MB)");
-      return;
-    }
-    setFiles([file]);
-    const reader = new FileReader();
-    reader.onload = (e) => setFilePreviews({ [file.name]: e.target?.result as string });
-    reader.readAsDataURL(file);
-  };
+    // ── UI state ──────────────────────────────────────────────────────────
+    const [input, setInput] = React.useState("");
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [showSearch, setShowSearch] = React.useState(false);
+    const [showThink, setShowThink] = React.useState(false);
+    const [showPicker, setShowPicker] = React.useState(false);
 
-  const handleDragOver = React.useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+    const promptBoxRef = React.useRef<HTMLDivElement>(null);
 
-  const handleDragLeave = React.useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
 
-  const handleDrop = React.useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    const imageFiles = droppedFiles.filter((file) => file.type.startsWith("image/"));
-    if (imageFiles.length > 0) processFile(imageFiles[0]);
-  }, []);
-
-  const handleRemoveFile = (index: number) => {
-    const fileToRemove = files[index];
-    if (fileToRemove && filePreviews[fileToRemove.name]) setFilePreviews({});
-    setFiles([]);
-  };
-
-  const openImageModal = (imageUrl: string) => setSelectedImage(imageUrl);
-
-  const handlePaste = React.useCallback((e: ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
-        const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          processFile(file);
-          break;
-        }
+    // ── Toggle search / think ─────────────────────────────────────────────
+    const handleToggleMode = (mode: "search" | "think") => {
+      if (mode === "search") {
+        setShowSearch((prev) => !prev);
+        setShowThink(false);
+      } else {
+        setShowThink((prev) => !prev);
+        setShowSearch(false);
       }
-    }
-  }, []);
+    };
 
-  React.useEffect(() => {
-    document.addEventListener("paste", handlePaste);
-    return () => document.removeEventListener("paste", handlePaste);
-  }, [handlePaste]);
 
-  const handleSubmit = () => {
-    if (input.trim() || files.length > 0) {
-      let messagePrefix = "";
-      if (showSearch) messagePrefix = "[Search: ";
-      else if (showThink) messagePrefix = "[Think: ";
-      else if (showCanvas) messagePrefix = "[Canvas: ";
-      const formattedInput = messagePrefix ? `${messagePrefix}${input}]` : input;
-      onSend(formattedInput, files);
+    // ── toggleFileSelectionForAttachment ──────────────────────────────────
+    // Called both from AttachmentManager (to select/deselect) and from the
+    // chip's ✕ button (to remove). If the file is already selected it gets
+    // removed; otherwise it is added with parse_status "parsing" and parsing
+    // begins immediately.
+    const toggleFileSelectionForAttachment = React.useCallback(
+      (file: UploadedFileMeta) => {
+        setSelectedAttachments((prev) => {
+          const alreadySelected = prev.some((a) => a.id === file.id);
+
+          if (alreadySelected) {
+            // Deselect — drop from list
+            return prev.filter((a) => a.id !== file.id);
+          }
+
+          // Select — add with "parsing" status; parseFileToText runs below
+          const newEntry: SelectedAttachment = {
+            id: file.id,
+            file_name: file.name,
+            size: file.size,
+            parse_status: "parsing",
+            text_content: null,
+            error: null,
+          };
+          return [...prev, newEntry];
+        });
+      },
+      []
+    );
+
+
+    // ── Parse newly-added attachments ─────────────────────────────────────
+    // Watches selectedAttachments; any entry whose parse_status is "parsing"
+    // and that has not yet started (no ongoing promise tracked) gets kicked off.
+    // We track in-flight parses with a ref so the effect doesn't re-fire.
+    const inFlightRef = React.useRef<Set<string>>(new Set());
+
+    React.useEffect(() => {
+      const parsingEntries = selectedAttachments.filter(
+        (a) => a.parse_status === "parsing" && !inFlightRef.current.has(a.id)
+      );
+
+      for (const entry of parsingEntries) {
+        inFlightRef.current.add(entry.id);
+
+        (async () => {
+          try {
+            const uploadedFile = await getFile(entry.id);
+            if (!uploadedFile) throw new Error("File not found in upload context");
+            const text = await parseFileToText(uploadedFile.file as File);
+
+            setSelectedAttachments((prev) =>
+              prev.map((a) =>
+                a.id === entry.id
+                  ? { ...a, parse_status: "ready", text_content: text, error: null }
+                  : a
+              )
+            );
+          } catch (err: any) {
+            setSelectedAttachments((prev) =>
+              prev.map((a) =>
+                a.id === entry.id
+                  ? {
+                    ...a,
+                    parse_status: "error",
+                    text_content: null,
+                    error: err?.message ?? "Parsing failed",
+                  }
+                  : a
+              )
+            );
+          } finally {
+            inFlightRef.current.delete(entry.id);
+          }
+        })();
+      }
+    }, [selectedAttachments, getFile]);
+
+
+    // ── Derived send eligibility ──────────────────────────────────────────
+    const hasText = input.trim() !== "";
+    const anyParsing = selectedAttachments.some((a) => a.parse_status === "parsing");
+    const allAttachmentsReady =
+      selectedAttachments.length === 0 ||
+      selectedAttachments.every((a) => a.parse_status === "ready");
+
+    const canSend =
+      (hasText || selectedAttachments.length > 0) &&
+      !isLoading &&
+      !isRecording &&
+      !anyParsing &&
+      allAttachmentsReady;
+
+    const hasContent = hasText || selectedAttachments.length > 0;
+
+
+    // ── Submit ────────────────────────────────────────────────────────────
+    const handleSubmit = () => {
+      if (!canSend) return;
+
+      let prefix = "";
+      if (showSearch) prefix = "[Search: ";
+      else if (showThink) prefix = "[Think: ";
+      const formattedInput = prefix ? `${prefix}${input}]` : input;
+
+      const message: ChatMessage = {
+        input_text: formattedInput,
+        attached_files: selectedAttachments
+          .filter((a) => a.parse_status === "ready" && a.text_content !== null)
+          .map((a) => ({
+            file_id: a.id,
+            file_title: a.file_name,          // ✅ was incorrectly `f.name`
+            text_content: a.text_content!,
+          })),
+        options: {
+          webSearch: showSearch,
+          thinking: showThink,
+        },
+      };
+
+      onSend(message);
       setInput("");
-      setFiles([]);
-      setFilePreviews({});
-    }
-  };
+      setSelectedAttachments([]);
+      setShowSearch(false);
+      setShowThink(false);
+    };
 
-  const handleStartRecording = () => console.log("Started recording");
 
-  const handleStopRecording = (duration: number) => {
-    console.log(`Stopped recording after ${duration} seconds`);
-    setIsRecording(false);
-    onSend(`[Voice message - ${duration} seconds]`, []);
-  };
+    // ── Voice ─────────────────────────────────────────────────────────────
+    const handleStartRecording = () => console.log("Started recording");
+    const handleStopRecording = (duration: number) => {
+      setIsRecording(false);
+      onSend({
+        input_text: `[Voice message - ${duration} seconds]`,
+        attached_files: [],
+        options: { webSearch: false, thinking: false },
+      });
+    };
 
-  const hasContent = input.trim() !== "" || files.length > 0;
 
-  return (
-    <>
+    // ── Send button tooltip ───────────────────────────────────────────────
+    const sendTooltip = isLoading
+      ? "Stop generation"
+      : isRecording
+        ? "Stop recording"
+        : anyParsing
+          ? "Parsing attachments…"
+          : canSend
+            ? "Send message"
+            : "Voice message";
+
+
+    // ── Chips ─────────────────────────────────────────────────────────────
+    const renderChips = () => {
+      if (selectedAttachments.length === 0) return null;
+      return (
+        <div className="flex flex-wrap gap-2 px-1 pb-2">
+          {selectedAttachments.map((file) => {
+            const isParsing = file.parse_status === "parsing";
+            const hasError = file.parse_status === "error";
+            const isReady = file.parse_status === "ready";
+
+            return (
+              <div
+                key={file.id}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md text-sm border",
+                  hasError
+                    ? "bg-red-500/10 border-red-500/40 text-red-300"
+                    : isReady
+                      ? "bg-[#2E3033] border-[#444] text-gray-200"
+                      : "bg-[#2E3033] border-[#444] text-gray-400"
+                )}
+              >
+                {isParsing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 shrink-0" />
+                ) : (
+                  <FileText
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0",
+                      hasError
+                        ? "text-red-400"
+                        : isReady
+                          ? "text-gray-300"
+                          : "text-gray-500"
+                    )}
+                  />
+                )}
+
+                <span className="max-w-[140px] truncate">{file.file_name}</span>
+
+                <span
+                  className={cn(
+                    "text-xs shrink-0",
+                    hasError ? "text-red-400" : "text-gray-500"
+                  )}
+                >
+                  {hasError ? "Parse failed" : isParsing ? "Parsing…" : "Ready"}
+                </span>
+
+                {/* Clicking ✕ deselects via the same toggle function */}
+                <button
+                  type="button"
+                  onClick={() => toggleFileSelectionForAttachment({ id: file.id, name: file.file_name, size: file.size } as UploadedFileMeta)}
+                  className="ml-0.5 hover:text-white transition-colors shrink-0"
+                  aria-label={`Remove ${file.file_name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+
+    // ── Render ────────────────────────────────────────────────────────────
+    return (
       <PromptInput
         value={input}
         onValueChange={setInput}
@@ -534,45 +681,15 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
         onSubmit={handleSubmit}
         className={cn(
           "w-full bg-[#1F2023] border-[#444444] shadow-[0_8px_30px_rgba(0,0,0,0.24)] transition-all duration-300 ease-in-out",
-          isRecording && "border-red-500/70",
-          className
+          isRecording && "border-red-500/70"
         )}
         disabled={isLoading || isRecording}
         ref={ref || promptBoxRef}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
       >
-        {files.length > 0 && !isRecording && (
-          <div className="flex flex-wrap gap-2 p-0 pb-1 transition-all duration-300">
-            {files.map((file, index) => (
-              <div key={index} className="relative group">
-                {file.type.startsWith("image/") && filePreviews[file.name] && (
-                  <div
-                    className="w-16 h-16 rounded-xl overflow-hidden cursor-pointer transition-all duration-300"
-                    onClick={() => openImageModal(filePreviews[file.name])}
-                  >
-                    <img
-                      src={filePreviews[file.name]}
-                      alt={file.name}
-                      className="h-full w-full object-cover"
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveFile(index);
-                      }}
-                      className="absolute top-1 right-1 rounded-full bg-black/70 p-0.5 opacity-100 transition-opacity"
-                    >
-                      <X className="h-3 w-3 text-white" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Attachment chips */}
+        {!isRecording && renderChips()}
 
+        {/* Textarea */}
         <div
           className={cn(
             "transition-all duration-300",
@@ -582,17 +699,16 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
           <PromptInputTextarea
             placeholder={
               showSearch
-                ? "Search the web..."
+                ? "Search the web during task planning..."
                 : showThink
                   ? "Think deeply..."
-                  : showCanvas
-                    ? "Create on canvas..."
-                    : placeholder
+                  : placeholder
             }
             className="text-base"
           />
         </div>
 
+        {/* Voice recorder */}
         {isRecording && (
           <VoiceRecorder
             isRecording={isRecording}
@@ -602,36 +718,58 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
         )}
 
         <PromptInputActions className="flex items-center justify-between gap-2 p-0 pt-2">
+          {/* ── Left actions ── */}
           <div
             className={cn(
               "flex items-center gap-1 transition-opacity duration-300",
               isRecording ? "opacity-0 invisible h-0" : "opacity-100 visible"
             )}
           >
-            <PromptInputAction tooltip="Upload image">
-              <button
-                onClick={() => uploadInputRef.current?.click()}
-                className="flex h-8 w-8 text-[#9CA3AF] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-600/30 hover:text-[#D1D5DB]"
-                disabled={isRecording}
-              >
-                <Paperclip className="h-5 w-5 transition-colors" />
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]);
-                    if (e.target) e.target.value = "";
-                  }}
-                  accept="image/*"
-                />
-              </button>
-            </PromptInputAction>
+            {/* Paperclip → AttachmentManager popover */}
+            <div className="relative">
+              <PromptInputAction tooltip="Attach files">
+                <button
+                  type="button"
+                  onClick={() => setShowPicker((prev) => !prev)}
+                  className="flex h-8 w-8 text-[#9CA3AF] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-600/30 hover:text-[#D1D5DB]"
+                  disabled={isRecording}
+                  aria-label="Attach files"
+                >
+                  <Paperclip className="h-5 w-5 transition-colors" />
+                </button>
+              </PromptInputAction>
 
+              <AnimatePresence>
+                {showPicker && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowPicker(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute bottom-full left-0 mb-2 z-50 w-80"
+                    >
+                      <AttachmentManager
+                        onToggleFileSelection={toggleFileSelectionForAttachment}
+                        selectedAttachments={selectedAttachments}
+                        maxAttachments={maxAttachments}
+                        onClose={() => setShowPicker(false)}
+                      />
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Search / Think toggles */}
             <div className="flex items-center">
               <button
                 type="button"
-                onClick={() => handleToggleChange("search")}
+                onClick={() => handleToggleMode("search")}
                 className={cn(
                   "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
                   showSearch
@@ -642,7 +780,11 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                 <div className="w-5 h-5 flex items-center justify-center shrink-0">
                   <motion.div
                     animate={{ rotate: showSearch ? 360 : 0, scale: showSearch ? 1.1 : 1 }}
-                    whileHover={{ rotate: showSearch ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                    whileHover={{
+                      rotate: showSearch ? 360 : 15,
+                      scale: 1.1,
+                      transition: { type: "spring", stiffness: 300, damping: 10 },
+                    }}
                     transition={{ type: "spring", stiffness: 260, damping: 25 }}
                   >
                     <Globe className={cn("w-4 h-4", showSearch ? "text-[#1EAEDB]" : "text-inherit")} />
@@ -667,7 +809,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
 
               <button
                 type="button"
-                onClick={() => handleToggleChange("think")}
+                onClick={() => handleToggleMode("think")}
                 className={cn(
                   "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
                   showThink
@@ -678,7 +820,11 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                 <div className="w-5 h-5 flex items-center justify-center shrink-0">
                   <motion.div
                     animate={{ rotate: showThink ? 360 : 0, scale: showThink ? 1.1 : 1 }}
-                    whileHover={{ rotate: showThink ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                    whileHover={{
+                      rotate: showThink ? 360 : 15,
+                      scale: 1.1,
+                      transition: { type: "spring", stiffness: 300, damping: 10 },
+                    }}
                     transition={{ type: "spring", stiffness: 260, damping: 25 }}
                   >
                     <BrainCog className={cn("w-4 h-4", showThink ? "text-[#8B5CF6]" : "text-inherit")} />
@@ -698,56 +844,11 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                   )}
                 </AnimatePresence>
               </button>
-
-              <CustomDivider />
-
-              <button
-                type="button"
-                onClick={handleCanvasToggle}
-                className={cn(
-                  "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
-                  showCanvas
-                    ? "bg-[#F97316]/15 border-[#F97316] text-[#F97316]"
-                    : "bg-transparent border-transparent text-[#9CA3AF] hover:text-[#D1D5DB]"
-                )}
-              >
-                <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                  <motion.div
-                    animate={{ rotate: showCanvas ? 360 : 0, scale: showCanvas ? 1.1 : 1 }}
-                    whileHover={{ rotate: showCanvas ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
-                    transition={{ type: "spring", stiffness: 260, damping: 25 }}
-                  >
-                    <FolderCode className={cn("w-4 h-4", showCanvas ? "text-[#F97316]" : "text-inherit")} />
-                  </motion.div>
-                </div>
-                <AnimatePresence>
-                  {showCanvas && (
-                    <motion.span
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#F97316] shrink-0"
-                    >
-                      Canvas
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
             </div>
           </div>
 
-          <PromptInputAction
-            tooltip={
-              isLoading
-                ? "Stop generation"
-                : isRecording
-                  ? "Stop recording"
-                  : hasContent
-                    ? "Send message"
-                    : "Voice message"
-            }
-          >
+          {/* ── Send / Voice / Stop ── */}
+          <PromptInputAction tooltip={sendTooltip}>
             <Button
               variant="default"
               size="icon"
@@ -755,23 +856,26 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                 "h-8 w-8 rounded-full transition-all duration-200",
                 isRecording
                   ? "bg-transparent hover:bg-gray-600/30 text-red-500 hover:text-red-400"
-                  : hasContent
+                  : canSend
                     ? "bg-white hover:bg-white/80 text-[#1F2023]"
                     : "bg-transparent hover:bg-gray-600/30 text-[#9CA3AF] hover:text-[#D1D5DB]"
               )}
               onClick={() => {
                 if (isRecording) setIsRecording(false);
-                else if (hasContent) handleSubmit();
-                else setIsRecording(true);
+                else if (canSend) handleSubmit();
+                else if (!anyParsing) setIsRecording(true);
               }}
               disabled={isLoading && !hasContent}
+              aria-label={sendTooltip}
             >
               {isLoading ? (
                 <Square className="h-4 w-4 fill-[#1F2023] animate-pulse" />
               ) : isRecording ? (
                 <StopCircle className="h-5 w-5 text-red-500" />
-              ) : hasContent ? (
+              ) : canSend ? (
                 <ArrowUp className="h-4 w-4 text-[#1F2023]" />
+              ) : anyParsing ? (
+                <Loader2 className="h-4 w-4 text-[#9CA3AF] animate-spin" />
               ) : (
                 <Mic className="h-5 w-5 text-[#1F2023] transition-colors" />
               )}
@@ -779,9 +883,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
           </PromptInputAction>
         </PromptInputActions>
       </PromptInput>
-
-      <ImageViewDialog imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />
-    </>
-  );
-});
+    );
+  }
+);
 PromptInputBox.displayName = "PromptInputBox";

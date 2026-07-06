@@ -1,25 +1,80 @@
 import { useMemo, useEffect, useRef } from "react";
 import { Tree, TreeApi, NodeApi } from "react-arborist";
 import { useDocumentStore } from "../store/documentStore";
-import type { BlockNode } from "../store/documentTypes";
 import TreeNode from "./TreeNode";
 import styles from "./DocumentTree.module.css";
-import { findPosByBlockId } from "../utils/nodeLookup";
+import { findPosByLexpalId, findPosByBlockId } from "../utils/nodeLookup";
 
 import { useDraftStore } from "../store/draftStore";
 
+type TreeNodeItem = {
+  id: string;
+  type: "section" | "clause" | "paragraph";
+  title?: string;
+  number?: string;
+  children?: TreeNodeItem[];
+};
+
+const flattenText = (node: any): string => {
+  if (!node) return "";
+  if (typeof node.text === "string") return node.text;
+  if (!Array.isArray(node.content)) return "";
+  return node.content.map(flattenText).join(" ");
+};
+
+const buildTreeFromProseMirror = (doc: any): TreeNodeItem[] => {
+  const content = Array.isArray(doc?.content) ? doc.content : [];
+
+  return content.map((node: any, index: number): TreeNodeItem => {
+    const headingLevel = typeof node?.attrs?.level === "number" ? node.attrs.level : 0;
+
+    if (node?.type === "heading") {
+      return {
+        id: node?.attrs?.lexpalId || node?.attrs?.blockId || `heading-${index}`,
+        type: "section",
+        title: flattenText(node) || "Untitled Section",
+      };
+    }
+
+    if (node?.type === "orderedList") {
+      const clauses = (node.content || []).map((item: any, itemIndex: number): TreeNodeItem => {
+        const paragraphNode = (item.content || []).find((child: any) => child.type === "paragraph");
+        return {
+          id: item?.attrs?.lexpalId || item?.attrs?.blockId || `clause-${index}-${itemIndex}`,
+          type: "clause",
+          number: `${itemIndex + 1}.`,
+          title: flattenText(paragraphNode) || `Clause ${itemIndex + 1}`,
+        };
+      });
+
+      return {
+        id: node?.attrs?.lexpalId || node?.attrs?.blockId || `ordered-list-${index}`,
+        type: headingLevel >= 2 ? "section" : "paragraph",
+        title: headingLevel >= 2 ? "Clauses" : "Ordered List",
+        children: clauses,
+      };
+    }
+
+    return {
+      id: node?.attrs?.lexpalId || node?.attrs?.blockId || `${node?.type || "node"}-${index}`,
+      type: headingLevel >= 2 ? "section" : "paragraph",
+      title: flattenText(node) || "Paragraph",
+    };
+  });
+};
+
 export default function DocumentTree() {
   const draftId = useDraftStore(state => state.activeDraftId);
-  const blockTree = useDraftStore(state => state.drafts[draftId]?.blockTree);
+  const prosemirrorJson = useDraftStore(state => state.drafts[draftId]?.prosemirrorJson);
   const activeBlockId = useDocumentStore(state => state.activeBlockId);
   const editor = useDocumentStore(state => state.editor);
 
-  const treeRef = useRef<TreeApi<BlockNode> | null>(null);
+  const treeRef = useRef<TreeApi<TreeNodeItem> | null>(null);
 
   const data = useMemo(() => {
-    if (!blockTree?.children) return [];
-    return blockTree.children;
-  }, [blockTree]);
+    if (!prosemirrorJson) return [];
+    return buildTreeFromProseMirror(prosemirrorJson);
+  }, [prosemirrorJson]);
 
   useEffect(() => {
     if (!treeRef.current || !activeBlockId) return;
@@ -33,13 +88,15 @@ export default function DocumentTree() {
 
   }, [activeBlockId]);
 
-  const handleSelect = (nodes: NodeApi<BlockNode>[]) => {
+  const handleSelect = (nodes: NodeApi<TreeNodeItem>[]) => {
     if (!editor || nodes.length === 0) return;
 
     const selectedNode = nodes[0];
-    const blockId = selectedNode.data.id;
+    const nodeId = selectedNode.data.id;
 
-    const pos = findPosByBlockId(editor.state.doc, blockId);
+    const pos =
+      findPosByLexpalId(editor.state.doc, nodeId) ??
+      findPosByBlockId(editor.state.doc, nodeId);
 
     if (pos === null) return;
 
@@ -53,16 +110,16 @@ export default function DocumentTree() {
       </div>
 
       <div className={styles.treeWrapper}>
-        {!blockTree && (
+        {!prosemirrorJson && (
           <div className={styles.empty}>Document tree not initialized</div>
         )}
 
-        {blockTree && data.length === 0 && (
+        {prosemirrorJson && data.length === 0 && (
           <div className={styles.empty}>Document tree empty</div>
         )}
 
-        {blockTree && data.length > 0 && (
-          <Tree<BlockNode>
+        {prosemirrorJson && data.length > 0 && (
+          <Tree<TreeNodeItem>
             ref={treeRef}
             data={data}
             idAccessor="id"
@@ -74,7 +131,7 @@ export default function DocumentTree() {
             indent={16}
             onSelect={handleSelect}
           >
-            {TreeNode}
+            {TreeNode as any}
           </Tree>
         )}
       </div>

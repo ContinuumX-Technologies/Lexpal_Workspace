@@ -3,6 +3,9 @@ import styles from './MenuBar.module.css';
 import { useDraftspace } from './Draftspace.context';
 import { useDraftStore } from './store/draftStore';
 
+
+import { saveAs } from "file-saver"; // or URL.createObjectURL
+
 import {
   Bold,
   Italic,
@@ -21,15 +24,29 @@ import {
   ChevronDown,
   FileUp,
 } from 'lucide-react';
-import { exportToPDF, exportToDocx, exportToTxt, exportToHtml } from './utils/exportUtils';
+
+
+import { parseDocxToPMJson } from "./utils/Parsedocxtopmjson";
+import { pmJsonToDocx } from "./utils/Parsepmjsontodocx";
+import { pmJsonToPdf } from './utils/Parsepmjsontopdf';
 
 export default function MenuBar({ editor }: { editor: any }) {
-  const { margins, setMargins } = useDraftspace();
-  const { createNewDraft, setActiveDraftId } = useDraftStore();
+  const { margins, setMargins, typography } = useDraftspace();
+  
+  const { createNewDraft, setActiveDraftId, updateDraft } = useDraftStore();
   const [showMargins, setShowMargins] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
+
+
+
+
+
+
+
+
+  //OPEN button handler, to import docx drafts from user's device
   const handleImportDocx = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -41,33 +58,23 @@ export default function MenuBar({ editor }: { editor: any }) {
 
     try {
       setIsImporting(true);
-      const formData = new FormData();
-      formData.append('file', file);
+      
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/import-docx`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error("Import failed");
-
-      const data = await response.json();
+      
+      let pmJSON=await parseDocxToPMJson(file);
       
       // Create a new draft for the imported document
       const title = file.name.replace(/\.[^/.]+$/, ""); // remove extension
       const newDraftId = createNewDraft(title);
       setActiveDraftId(newDraftId);
-
-      // Set content to editor
-      // mammoth converts docx to clean HTML, which TipTap understands perfectly
-      // Wait a tiny bit for the new draft context to propagate, or just set it
-      setTimeout(() => {
-        editor.commands.setContent(data.html);
-      }, 0);
       
-      if (data.warnings && data.warnings.length > 0) {
-        console.warn("Import Warnings:", data.warnings);
-      }
+      updateDraft(newDraftId, { prosemirrorJson: pmJSON });
+
+      editor.commands.setContent(pmJSON, { emitUpdate: false });
+
+      
+      
+     
 
     } catch (error) {
       console.error("Import error:", error);
@@ -78,6 +85,34 @@ export default function MenuBar({ editor }: { editor: any }) {
       e.target.value = '';
     }
   };
+
+
+
+
+
+
+
+  const handleExportDocx = async () => {
+  const blob = await pmJsonToDocx(
+    editor.getJSON(),
+    margins,      // your Margins object (px)
+    typography.lineHeight,   // e.g. 1.5
+  );
+  saveAs(blob, `lexpal_draft.docx`);
+};
+
+
+
+const handleExportPdf = async () => {
+  const blob = await pmJsonToPdf(
+    editor.getJSON(),
+    margins,
+    typography.lineHeight,
+  );
+  saveAs(blob, "lexpal_draft.pdf");
+};
+
+
 
   if (!editor) return null;
 
@@ -331,28 +366,17 @@ export default function MenuBar({ editor }: { editor: any }) {
             <div className={styles.exportMenu}>
               <button 
                 className={styles.menuItem} 
-                onClick={() => { exportToPDF(); setShowExportMenu(false); }}
+                onClick={() => { handleExportPdf(); setShowExportMenu(false); }}
               >
                 PDF Document (.pdf)
               </button>
               <button 
                 className={styles.menuItem} 
-                onClick={() => { exportToDocx(editor.getHTML()); setShowExportMenu(false); }}
+                onClick={() => { handleExportDocx(); setShowExportMenu(false); }}
               >
                 Microsoft Word (.docx)
               </button>
-              <button 
-                className={styles.menuItem} 
-                onClick={() => { exportToTxt(editor.getText()); setShowExportMenu(false); }}
-              >
-                Plain Text (.txt)
-              </button>
-              <button 
-                className={styles.menuItem} 
-                onClick={() => { exportToHtml(editor.getHTML()); setShowExportMenu(false); }}
-              >
-                Web Page (.html)
-              </button>
+              
             </div>
           )}
         </div>

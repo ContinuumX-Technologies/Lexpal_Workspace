@@ -1,26 +1,40 @@
 // orchestrator.js
 import getConfig from "./config.js";
-import { extractCase, generateBranches, runBranch, aggregateResults } from "./ helper.js";
+import {
+  extractCase,
+  generateBranches,
+  runBranch,
+  aggregateResults,
+  dedupeAndRankDiscoveredLaws
+} from "./ helper.js";
 
 
-export async function runReasoning(query, mode = "mid") {
+export async function runReasoning(query, mode ) {
   const config = getConfig(mode);
 
+
   // STEP 1: Extract facts + questions
-  const { facts, questions } = await extractCase(query, config.model);
+  const { facts, questions } = await extractCase(query, config);
+
 
   //dev test logs
   console.log(facts);
   console.log(questions);
 
+
+
   // STEP 2: Generate branches
   const branches = await generateBranches(facts, questions, config);
+
 
   // STEP 3: Run branches in parallel
   // const results = await Promise.all(
   //   branches.map((branch) => runBranch(branch, facts, questions, config))
   // );
 
+
+  //global store for laws discovered in each thought of every branch
+  const global_discovered_laws=[];
 
   const results = [];
   let i = 0
@@ -36,14 +50,23 @@ export async function runReasoning(query, mode = "mid") {
       branch,
       facts,
       questions,
-      config
+      config,
+      global_discovered_laws
     );
 
     results.push(result);
   }
 
   // STEP 4: Final aggregation
-  const final = await aggregateResults(results, config.model);
+  const final={};
+  final.discovered_laws = dedupeAndRankDiscoveredLaws(global_discovered_laws, config);
+  final.text_content = await aggregateResults(
+    results,
+    facts,
+    questions,
+    final.discovered_laws,
+    config
+  );
 
   return final;
 }

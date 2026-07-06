@@ -3,27 +3,33 @@
   "version": "1.0.0",
   "description": "Lexpal Workspace Express API Server",
   "main": "dist/server.js",
-  
-  "scripts": {
-    "dev": "nodemon server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "summarize": "ts-node src/scripts/summarizeJudgments.ts"
-  },
   "author": "Chinmaya Mishra",
   "license": "ISC",
+  "scripts": {
+    "dev": "nodemon --exec tsx server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "summarize": "ts-node src/scripts/summarizeJudgments.ts",
+    "test": "tsx --test src/draft_edit_pipeline/__tests__/*.test.ts"
+  },
   "dependencies": {
     "@types/multer": "^2.1.0",
     "adm-zip": "^0.5.17",
+    "bcryptjs": "^3.0.3",
     "chromadb": "^3.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "fast-xml-parser": "^5.8.0",
+    "google-auth-library": "^10.9.0",
+    "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.12.0",
     "mongodb": "^7.2.0",
+    "mongoose": "^9.6.2",
     "multer": "^2.1.1",
     "openai": "^4.52.7",
+    "tiktoken": "^1.0.22",
+    "ws": "^8.21.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -33,6 +39,7 @@
     "@types/node": "^20.14.9",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.22.3",
     "typescript": "^5.5.3"
   }
 }

@@ -1,6 +1,6 @@
 import { useDraftspace } from "../Draftspace.context";
 import type { RightPanelTab } from "../Draftspace.context";
-import { Download, MoreVertical, Share2 } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import AiChat from "./AiChat";
 import Placeholders from "./Placeholders";
 import FormatBuilderTab from "./FormatBuilderTab";
@@ -8,21 +8,31 @@ import CommentsTab from "./CommentsTab";
 import ActivityTab from "./ActivityTab";
 import styles from "./RightPanel.module.css";
 
+
+
 const PANEL_TITLES: Record<RightPanelTab, string> = {
-    "ai-chat": "AI Chat",
+    "ai-task-manager": "Draft Agent",
     "placeholders": "Placeholders",
     "format-builder": "Format Builder",
     "comments": "Comments",
     "activity": "Activity",
 };
 
+
+
+
+
 function renderTabContent(activeTab: RightPanelTab) {
-    if (activeTab === "ai-chat") return <AiChat />;
+    if (activeTab === "ai-task-manager") return <AiChat />;
     if (activeTab === "placeholders") return <Placeholders />;
     if (activeTab === "format-builder") return <FormatBuilderTab />;
     if (activeTab === "comments") return <CommentsTab />;
     return <ActivityTab />;
 }
+
+
+
+
 
 export default function RightPanel() {
     const { activeTab } = useDraftspace();
@@ -33,7 +43,7 @@ export default function RightPanel() {
                 <div className={styles.panelToolbar}>
                     <span className={styles.panelTitle}>{PANEL_TITLES[activeTab]}</span>
 
-                    <div className={styles.toolbarGroup}>
+                    {/* <div className={styles.toolbarGroup}>
                         <button type="button" className={styles.actionButton} aria-label="Share draft">
                             <Share2 size={14} />
                             <span>Share</span>
@@ -42,7 +52,7 @@ export default function RightPanel() {
                             <Download size={14} />
                             <span>Download</span>
                         </button>
-                    </div>
+                    </div> */}
 
                     <button type="button" className={styles.iconButton} aria-label="More actions">
                         <MoreVertical size={16} />

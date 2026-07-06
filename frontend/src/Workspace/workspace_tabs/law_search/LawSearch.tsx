@@ -1,22 +1,98 @@
+"use client";
+
+import  { useRef, useState, useCallback, useEffect } from "react";
+import Sidebar from "./components/Sidebar";
+import { SidebarProvider, useSidebar } from "./context/SidebarContext";
+import { LawSearchAttachmentsProvider } from "./context/attachments.context";
+
+import styles from "./LawSearch.module.css"; // We'll create this CSS next
+import MainChatSection from "./MainChatSection";
+
+
+
+
+
+
+function SidebarWrapper() {
+    const { isSidebarOpen, sidebarWidth, setSidebarWidth } = useSidebar();
+
+
+    
+
+    const [isResizing, setIsResizing] = useState(false);
+    const sidebarRef = useRef<HTMLDivElement>(null);
+
+    const startResizing = useCallback(() => {
+        setIsResizing(true);
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+    }, []);
+
+    const resize = useCallback(
+        (mouseMoveEvent: MouseEvent) => {
+            if (isResizing) {
+                const newWidth = mouseMoveEvent.clientX;
+                if (newWidth >= 200 && newWidth <= 480) { // Min/Max constraints
+                    setSidebarWidth(newWidth);
+                }
+            }
+        },
+        [isResizing, setSidebarWidth]
+    );
+
+    useEffect(() => {
+        window.addEventListener("mousemove", resize);
+        window.addEventListener("mouseup", stopResizing);
+        return () => {
+            window.removeEventListener("mousemove", resize);
+            window.removeEventListener("mouseup", stopResizing);
+        };
+    }, [resize, stopResizing]);
+
+
+
+
+    // const handleNewChat = () => {
+    //     router.push("/Lex-AI/new");
+    // };
+
+
+
+
+    return (
+        <div
+            className={styles.sidebarContainer}
+            style={{ width: isSidebarOpen ? sidebarWidth : 60, transition: "width 0.3s ease" }}
+            ref={sidebarRef}
+        >
+            <Sidebar  />
+            {/* sidebar prop className={styles.sidebarInstance}*/}
+            {/* Draggable Handle - Only when Open */}
+            {isSidebarOpen && (
+                <div className={styles.resizeHandle} onMouseDown={startResizing}>
+                    <div className={styles.resizeLine} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+
+
+
 export default function LawSearch() {
-  return (
-    <div
-      style={{
-        width: "100%",
-        padding: "24px",
-        borderRadius: "16px",
-        border: "1px solid #e5e7eb",
-        background: "#ffffff",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "200px",
-        fontSize: "18px",
-        fontWeight: 500,
-        color: "#6b7280",
-      }}
-    >
-      Law Search Placeholder
-    </div>
-  );
+    return (
+        <SidebarProvider>
+            <LawSearchAttachmentsProvider>
+                <div className={styles.layoutRoot}>
+                    <SidebarWrapper />
+                    <div className={styles.mainContent}>
+                        <MainChatSection/>
+                    </div>
+                </div>
+            </LawSearchAttachmentsProvider>
+        </SidebarProvider>
+    );
 }

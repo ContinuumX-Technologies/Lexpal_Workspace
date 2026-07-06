@@ -1,10 +1,9 @@
 import { NodeApi } from "react-arborist";
-import type { BlockNode } from "../store/documentTypes";
 import styles from "./DocumentTree.module.css";
 import { ChevronRight, ChevronDown, FileText, Type, ListTree } from "lucide-react";
 
 type TreeNodeProps = {
-    node: NodeApi<BlockNode>;
+    node: NodeApi<any>;
     style: React.CSSProperties;
     dragHandle?: (el: HTMLDivElement | null) => void;
 };

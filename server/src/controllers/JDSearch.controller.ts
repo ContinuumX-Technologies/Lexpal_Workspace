@@ -410,6 +410,11 @@ export const searchJudgements = async (
     }
 };
 
+
+
+
+
+
 export const getJudgementById = async (req: Request, res: Response): Promise<void> => {
     const { MongoClient, ObjectId } = await import("mongodb");
     const url = process.env.MONGO_CONNECTION_URL;

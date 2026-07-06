@@ -10,4 +10,6 @@ Country declared enemy...
 How to recover payment?
 `;
 
-runReasoning(query, "high").then(console.log);
+
+//reasoning_modes -----> lite/deep
+runReasoning(query, "deep").then(console.log);   

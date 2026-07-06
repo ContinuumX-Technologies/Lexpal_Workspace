@@ -1,0 +1,465 @@
+/* Sidebar.module.css — Apple-style clean design */
+
+/* ── Main Container ── */
+.sidebar {
+    width: 100%;
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    font-size: 13.5px;
+    flex-shrink: 0;
+    border-right: 1px solid rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+}
+
+:global(.dark) .sidebar {
+    background-color: #1c1c1e;
+    color: #f5f5f7;
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+
+/* ── Top Bar — New Chat ── */
+.sidebarTopBar {
+    padding: 14px 12px 10px 12px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.newChatBtn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    text-align: left;
+}
+
+.newChatBtn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+:global(.dark) .newChatBtn {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f5f5f7;
+}
+
+:global(.dark) .newChatBtn:hover {
+    background: rgba(255, 255, 255, 0.13);
+}
+
+
+/* ── Scrollable History List ── */
+.historyList {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px 16px 8px;
+    display: flex;
+    flex-direction: column;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+}
+
+:global(.dark) .historyList {
+    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+
+/* ── Date Group Headers ── */
+.dateGroup {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8e8e93;
+    margin: 18px 0 5px 8px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.dateGroup:first-child {
+    margin-top: 6px;
+}
+
+:global(.dark) .dateGroup {
+    color: #636366;
+}
+
+
+/* ── History Item Wrapper ── */
+.historyItemWrapper {
+    position: relative;
+    margin-bottom: 1px;
+    border-radius: 9px;
+}
+
+
+/* ── History Item Button ── */
+.historyItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 8px 32px 8px 10px;
+    border-radius: 9px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 13.5px;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: background 0.12s ease;
+    mask-image: linear-gradient(to right, black 82%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 82%, transparent 100%);
+}
+
+.historyItem:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+:global(.dark) .historyItem:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.historyItem.active {
+    background: rgba(0, 0, 0, 0.08);
+    font-weight: 500;
+}
+
+:global(.dark) .historyItem.active {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.historyItemWrapper:hover .historyItem {
+    mask-image: linear-gradient(to right, black 72%, transparent 95%);
+    -webkit-mask-image: linear-gradient(to right, black 72%, transparent 95%);
+}
+
+.historyItemTitle {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* ── ⋯ Options Button ── */
+.itemOptionsBtn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #8e8e93;
+    transition: background 0.12s, color 0.12s;
+}
+
+.itemOptionsBtn:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: #1d1d1f;
+}
+
+:global(.dark) .itemOptionsBtn {
+    color: #636366;
+}
+
+:global(.dark) .itemOptionsBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
+}
+
+.historyItemWrapper:hover .itemOptionsBtn {
+    display: flex;
+}
+
+
+/* ── Dropdown Menu Popover ── */
+.menuPopover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 2px);
+    width: 160px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow:
+        0 8px 30px rgba(0, 0, 0, 0.13),
+        0 0 0 0.5px rgba(0, 0, 0, 0.08);
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    z-index: 200;
+    animation: popoverIn 0.12s ease;
+}
+
+:global(.dark) .menuPopover {
+    background: #2c2c2e;
+    box-shadow:
+        0 8px 30px rgba(0, 0, 0, 0.45),
+        0 0 0 0.5px rgba(255, 255, 255, 0.08);
+}
+
+@keyframes popoverIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.menuItem {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 11px;
+    border-radius: 7px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 400;
+    color: #1d1d1f;
+    text-align: left;
+    transition: background 0.12s;
+}
+
+.menuItem:hover {
+    background: #f0f0f5;
+}
+
+.menuItem.delete {
+    color: #ff3b30;
+}
+
+.menuItem.delete:hover {
+    background: rgba(255, 59, 48, 0.08);
+}
+
+:global(.dark) .menuItem {
+    color: #f5f5f7;
+}
+
+:global(.dark) .menuItem:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .menuItem.delete {
+    color: #ff453a;
+}
+
+:global(.dark) .menuItem.delete:hover {
+    background: rgba(255, 69, 58, 0.1);
+}
+
+
+/* ── Delete Confirm Inline ── */
+.deleteConfirm {
+    position: absolute;
+    inset: 0;
+    background: #f0f0f5;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 6px;
+    z-index: 10;
+}
+
+:global(.dark) .deleteConfirm {
+    background: #2c2c2e;
+}
+
+.deleteLabel {
+    font-size: 12px;
+    color: #8e8e93;
+    flex: 1;
+}
+
+.confirmIconBtn,
+.cancelIconBtn {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.confirmIconBtn {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+}
+
+.confirmIconBtn:hover {
+    background: rgba(255, 59, 48, 0.2);
+}
+
+.cancelIconBtn {
+    background: rgba(0, 0, 0, 0.05);
+    color: #8e8e93;
+}
+
+.cancelIconBtn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #1d1d1f;
+}
+
+:global(.dark) .confirmIconBtn {
+    background: rgba(255, 69, 58, 0.15);
+    color: #ff453a;
+}
+
+:global(.dark) .cancelIconBtn {
+    background: rgba(255, 255, 255, 0.06);
+    color: #636366;
+}
+
+:global(.dark) .cancelIconBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
+}
+
+
+/* ── Rename Input ── */
+.renameInput {
+    background: transparent;
+    border: 1px solid rgba(0, 122, 255, 0.5);
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: inherit;
+    font-size: 13.5px;
+    width: 100%;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+
+:global(.dark) .renameInput {
+    border-color: rgba(10, 132, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.12);
+}
+
+
+/* ── Loading / Empty States ── */
+.loading,
+.empty {
+    padding: 24px;
+    text-align: center;
+    color: #8e8e93;
+    font-size: 13px;
+}
+
+
+/* ── Mini Sidebar (Collapsed Rail) ── */
+.miniSidebar {
+    width: 60px !important;
+    align-items: center;
+    padding: 12px 0;
+    overflow: hidden;
+    background-color: #f5f5f7;
+    border-right: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+:global(.dark) .miniSidebar {
+    background-color: #1c1c1e;
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+@media (max-width: 768px) {
+    .miniSidebar {
+        display: none !important;
+    }
+}
+
+.miniHeader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding-top: 4px;
+}
+
+.miniIconBtn {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #8e8e93;
+    transition: background 0.15s, color 0.15s;
+}
+
+.miniIconBtn:hover {
+    background-color: rgba(0, 0, 0, 0.07);
+    color: #1d1d1f;
+}
+
+:global(.dark) .miniIconBtn {
+    color: #636366;
+}
+
+:global(.dark) .miniIconBtn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
+}
+
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 270px !important;
+        z-index: 100;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar.mobileOpen {
+        transform: translateX(0);
+    }
+
+    .mobileOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 90;
+        opacity: 0;
+        transition: opacity 0.25s;
+        pointer-events: none;
+    }
+
+    .mobileOverlay.visible {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}

@@ -1,0 +1,368 @@
+/* LawCards.module.css — Premium Apple-style law card design */
+
+/* ── Outer Wrapper ── */
+.wrapper {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.railLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8e8e93;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+/* ── Horizontal Scroll Container ── */
+.scrollContainer {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  align-items: flex-start;
+}
+
+.scrollContainer::-webkit-scrollbar {
+  display: none;
+}
+
+
+/* ══════════════════════════════════════════
+   CARD
+══════════════════════════════════════════ */
+.card {
+  position: relative;
+  width: 300px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 4px 16px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+}
+
+.card:hover {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+:global(.dark) .card {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+:global(.dark) .card:hover {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+
+/* ── Relevance Strip (top bar) ── */
+.relevanceStrip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.06) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+:global(.dark) .relevanceStrip {
+  background: linear-gradient(90deg, rgba(129, 140, 248, 0.08) 0%, transparent 100%);
+  border-bottom-color: rgba(129, 140, 248, 0.12);
+}
+
+.relevanceLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6366f1;
+  white-space: nowrap;
+}
+
+:global(.dark) .relevanceLabel {
+  color: #818cf8;
+}
+
+.dotsRow {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.15);
+  transition: background 0.15s;
+}
+
+.dotFilled {
+  background: #6366f1;
+}
+
+:global(.dark) .dot {
+  background: rgba(129, 140, 248, 0.15);
+}
+
+:global(.dark) .dotFilled {
+  background: #818cf8;
+}
+
+.relevanceNumber {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+  white-space: nowrap;
+}
+
+.relevanceOf {
+  font-weight: 400;
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+:global(.dark) .relevanceNumber {
+  color: #818cf8;
+}
+
+
+/* ── Primary Index: Section badge + Act name ── */
+.primaryIndex {
+  padding: 14px 14px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionBadge {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: #f0f0ff;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #4f46e5;
+  font-variant-numeric: tabular-nums;
+}
+
+:global(.dark) .sectionBadge {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(129, 140, 248, 0.25);
+  color: #a5b4fc;
+}
+
+.actName {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1d1d1f;
+  line-height: 1.35;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+:global(.dark) .actName {
+  color: #f5f5f7;
+}
+
+
+/* ── Tag Row ── */
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 14px 12px 14px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #f5f5f7;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  font-size: 11px;
+  color: #3c3c43;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.tagFull {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.tagKey {
+  font-weight: 700;
+  color: #8e8e93;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+:global(.dark) .tag {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #ebebf5;
+}
+
+:global(.dark) .tagKey {
+  color: #636366;
+}
+
+
+/* ── Divider ── */
+.divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 0 14px;
+}
+
+:global(.dark) .divider {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+
+/* ── Content Sections ── */
+.section {
+  padding: 10px 14px 6px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8e8e93;
+}
+
+.sectionHeadReason {
+  color: #d97706;
+}
+
+.sectionHeadReason svg {
+  color: #d97706;
+}
+
+:global(.dark) .sectionHead {
+  color: #636366;
+}
+
+:global(.dark) .sectionHeadReason {
+  color: #f59e0b;
+}
+
+:global(.dark) .sectionHeadReason svg {
+  color: #f59e0b;
+}
+
+.lawText {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #3c3c43;
+  margin: 0;
+  word-break: break-word;
+}
+
+.lawTextClamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+:global(.dark) .lawText {
+  color: #ebebf5cc;
+}
+
+.reasoningText {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #92400e;
+  background: rgba(251, 191, 36, 0.08);
+  border-left: 2.5px solid #f59e0b;
+  padding: 7px 10px;
+  border-radius: 0 7px 7px 0;
+  margin: 0;
+  word-break: break-word;
+  font-style: italic;
+}
+
+:global(.dark) .reasoningText {
+  color: #fcd34d;
+  background: rgba(251, 191, 36, 0.07);
+  border-left-color: #f59e0b;
+}
+
+
+/* ── Expand Button ── */
+.expandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 4px;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6366f1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.expandBtn:hover {
+  background: rgba(99, 102, 241, 0.05);
+  color: #4f46e5;
+}
+
+:global(.dark) .expandBtn {
+  border-top-color: rgba(255, 255, 255, 0.07);
+  color: #818cf8;
+}
+
+:global(.dark) .expandBtn:hover {
+  background: rgba(129, 140, 248, 0.08);
+  color: #a5b4fc;
+}

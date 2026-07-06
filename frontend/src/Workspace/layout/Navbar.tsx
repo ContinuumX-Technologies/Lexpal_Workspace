@@ -59,18 +59,20 @@ export default function Navbar() {
           </svg>
         </button>
 
-        <button
-          className={`${styles.navItem} ${activeTab === "judgement_search" ? styles.active : ""}`}
-          onClick={() => setActiveTab("judgement_search")}
-        >
-          Judgement Search
-        </button>
+        
 
         <button
           className={`${styles.navItem} ${activeTab === "law_search" ? styles.active : ""}`}
           onClick={() => setActiveTab("law_search")}
         >
-          Law Search
+          AI Counsel
+        </button>
+
+        <button
+          className={`${styles.navItem} ${activeTab === "judgement_search" ? styles.active : ""}`}
+          onClick={() => setActiveTab("judgement_search")}
+        >
+          Judgement Search
         </button>
 
         <button

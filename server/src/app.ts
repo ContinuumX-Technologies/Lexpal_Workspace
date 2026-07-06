@@ -3,6 +3,7 @@ import cors from "cors";
 import documentRoutes from "./routes/document.routes";
 import JDSearchRouter from "./routes/JDSearch.routes";
 import firmPrecedentRoutes from "./routes/firmPrecedent.routes";
+import authRoutes from "./routes/auth.routes.js";
 
 const app = express();
 
@@ -16,6 +17,9 @@ app.get("/health", (_req, res) => {
 });
 
 // ── Routes ─────────────────────────────────────────────────────────────────
+app.use("/api/auth", authRoutes);
+
+
 app.use("/api/documents", documentRoutes);
 app.use("/api/judgements", JDSearchRouter);
 app.use("/api/firm-precedents", firmPrecedentRoutes);

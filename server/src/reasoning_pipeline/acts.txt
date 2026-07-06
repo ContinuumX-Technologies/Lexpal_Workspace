@@ -86,10 +86,13 @@ Bengal, Agra and Assam Civil Courts Act|1
 Betwa River Board  Act|0
 Betwa River Board Act|1
 Bharat Petroleum Corporation Limited  Act|0
-Bharatiya Nagarik Suraksha Sanhita|1
-Bharatiya Nyaya Sanhita|1
-Bharatiya Sakshya Adhiniyam|1
-Bharatiya Vayuyan Adhiniyam|1
+Bharatiya Nagarik Suraksha Sanhita (BNSS, Criminal Procedure Code, CrPC Replacement, Criminal Procedure Law)|1
+
+Bharatiya Nyaya Sanhita (BNS, Indian Penal Code Replacement, IPC Replacement, Criminal Offences Law)|1
+
+Bharatiya Sakshya Adhiniyam (BSA, Indian Evidence Act Replacement, Law of Evidence)|1
+
+Bharatiya Vayuyan Adhiniyam (Aviation Law, Aircraft Act, Civil Aviation Regulation)|1
 Bhopal Gas Leak Disaster  Act|0
 Bihar and Uttar Pradesh  Act|1
 Bihar and West Bengal  Act|1

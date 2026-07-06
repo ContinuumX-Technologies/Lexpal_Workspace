@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react"
 import { useDocumentStore } from "../store/documentStore"
-import type { BlockNode } from "../store/documentTypes"
 import styles from "./Placeholders.module.css"
-import { blockTreeToProseMirror } from "../editor/blockToProseMirror"
-import { proseMirrorToBlocks } from "../editor/proseMirrorToBlocks"
+import type { ProseMirrorJsonNode } from "../store/draftStore"
 
 interface PlaceholderEntry {
   key: string
@@ -11,18 +9,28 @@ interface PlaceholderEntry {
 }
 
 /**
- * Extract placeholders from raw text
+ * Extract placeholders directly from ProseMirror JSON
  */
-function extractPlaceholders(text: string): string[] {
-  if (!text) return []
+function extractPlaceholdersFromNode(node: ProseMirrorJsonNode | null | undefined, found: Set<string>) {
+  if (!node) return
 
-  const regex = /\{\{(\s*[\w\s-]+?\s*)\}\}/g
-  const found = new Set<string>()
-  let match: RegExpExecArray | null
-
-  while ((match = regex.exec(text)) !== null) {
-    found.add(match[1].trim())
+  if (typeof node.text === "string") {
+    const regex = /{{(.*?)}}/g
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(node.text)) !== null) {
+      const key = match[1]?.trim()
+      if (key) found.add(key)
+    }
   }
+
+  if (Array.isArray(node.content)) {
+    node.content.forEach((child) => extractPlaceholdersFromNode(child, found))
+  }
+}
+
+function extractPlaceholders(doc: ProseMirrorJsonNode | null | undefined): string[] {
+  const found = new Set<string>()
+  extractPlaceholdersFromNode(doc, found)
 
   return Array.from(found)
 }
@@ -30,18 +38,16 @@ function extractPlaceholders(text: string): string[] {
 import { useDraftStore } from "../store/draftStore"
 
 export default function Placeholders() {
-  const draftId = "default-draft";
-  const { updateDraft } = useDraftStore();
-  const setBlockTree = (tree: BlockNode) => updateDraft(draftId, { blockTree: tree });
+  const draftId = useDraftStore(state => state.activeDraftId)
+  const draft = useDraftStore(state => state.drafts[draftId])
+  const updateDraft = useDraftStore(state => state.updateDraft)
   const editor = useDocumentStore(state => state.editor)
 
   const [entries, setEntries] = useState<PlaceholderEntry[]>([])
   const [applied, setApplied] = useState(false)
 
-  const detectPlaceholders = () => {
-    if (!editor) return
-    const text = editor.getText()
-    const keys = extractPlaceholders(text)
+  const detectPlaceholders = (doc: ProseMirrorJsonNode | null | undefined) => {
+    const keys = extractPlaceholders(doc)
 
     setEntries(prev => {
       const existingMap = new Map(prev.map(e => [e.key, e.value]))
@@ -51,6 +57,7 @@ export default function Placeholders() {
         value: existingMap.get(k) ?? ""
       }))
     })
+
     setApplied(false)
   }
 
@@ -58,16 +65,20 @@ export default function Placeholders() {
    * Detect placeholders from editor content continuously
    */
   useEffect(() => {
+    detectPlaceholders((editor?.getJSON() as ProseMirrorJsonNode | undefined) ?? draft?.prosemirrorJson)
+
     if (!editor) return
 
-    detectPlaceholders()
+    const onEditorUpdate = () => {
+      detectPlaceholders(editor.getJSON() as ProseMirrorJsonNode)
+    }
 
-    editor.on('update', detectPlaceholders)
+    editor.on('update', onEditorUpdate)
 
     return () => {
-      editor.off('update', detectPlaceholders)
+      editor.off('update', onEditorUpdate)
     }
-  }, [editor])
+  }, [editor, draft?.prosemirrorJson])
 
   const updateValue = (key: string, value: string) => {
     setEntries(prev =>
@@ -77,49 +88,45 @@ export default function Placeholders() {
   }
 
   /**
-   * Apply placeholders directly to Editor state, preserving user edits
+   * Apply placeholder values across entire ProseMirror tree.
+   * No DOM mutation; editor state remains source of truth.
    */
   const handleApply = () => {
-    if (!editor) return
+    const currentDoc = (editor?.getJSON() as ProseMirrorJsonNode | undefined) ?? draft?.prosemirrorJson
+    if (!currentDoc) return
 
-    // 1. Sync current editor state to blocks to preserve all user edits
-    const currentTree = proseMirrorToBlocks(editor.getJSON() as any)
-    const newTree = structuredClone(currentTree)
+    const nextDoc = structuredClone(currentDoc)
 
-    // 2. Replace placeholders within the blocks
-    function replaceInNode(node: BlockNode) {
-      if (node.content) {
-        node.content = node.content.map(span => {
-          let text = span.text
+    const replaceInNode = (node: ProseMirrorJsonNode) => {
+      if (typeof node.text === "string") {
+        let updatedText = node.text
 
-          for (const { key, value } of entries) {
-            if (!value) continue
+        for (const { key, value } of entries) {
+          if (!value.trim()) continue
 
-            const pattern = new RegExp(
-              `\\{\\{\\s*${key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&")}\\s*\\}\\}`,
-              "g"
-            )
+          const pattern = new RegExp(
+            `\\{\\{\\s*${key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&")}\\s*\\}\\}`,
+            "g"
+          )
 
-            text = text.replace(pattern, value)
-          }
+          updatedText = updatedText.replace(pattern, value)
+        }
 
-          return { ...span, text }
-        })
+        node.text = updatedText
       }
 
-      if (node.children) {
-        node.children.forEach(replaceInNode)
+      if (Array.isArray(node.content)) {
+        node.content.forEach(replaceInNode)
       }
     }
 
-    replaceInNode(newTree)
+    replaceInNode(nextDoc)
 
-    // 3. Update store
-    setBlockTree(newTree)
+    updateDraft(draftId, { prosemirrorJson: nextDoc })
 
-    // 4. Update editor with the new content
-    const pmDoc = blockTreeToProseMirror(newTree)
-    editor.commands.setContent(pmDoc)
+    if (editor) {
+      editor.commands.setContent(nextDoc, { emitUpdate: false })
+    }
 
     setApplied(true)
   }
