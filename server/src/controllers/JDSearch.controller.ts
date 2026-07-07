@@ -7,6 +7,7 @@ import * as zlib from "zlib";
 import { getOrCreateChromaCollection } from "../infra/chroma.client";
 import { getEmbedding, extractSearchFilters, generateShortTitles } from "../services/AI";
 import { searchEnrichmentMetadata } from "../search/enrichmentSearch.service";
+import { ENRICHMENT_INDEX, elasticsearchRequest } from "../infra/elasticsearch.client";
 
 const COLLECTION_NAME = "judgements";
 
@@ -164,6 +165,75 @@ function buildEnrichmentFilters(body: SearchRequestBody) {
     return Object.keys(filters).length ? filters : undefined;
 }
 
+async function validateCandidatesWithElasticsearch(
+    esIds: string[],
+    body: SearchRequestBody
+): Promise<string[]> {
+    const filters = buildEnrichmentFilters(body);
+    if (!filters || !esIds.length) {
+        return esIds;
+    }
+
+    try {
+        const filterClauses: any[] = [
+            { ids: { values: esIds } }
+        ];
+
+        if (filters.year) filterClauses.push({ term: { year: filters.year } });
+        if (filters.yearFrom || filters.yearTo) {
+            filterClauses.push({
+                range: {
+                    year: {
+                        ...(filters.yearFrom ? { gte: filters.yearFrom } : {}),
+                        ...(filters.yearTo ? { lte: filters.yearTo } : {}),
+                    }
+                }
+            });
+        }
+        if (filters.subject_areas) {
+            filterClauses.push({ terms: { "subject_areas.keyword": filters.subject_areas } });
+        }
+        if (filters.bench) {
+            filterClauses.push({ terms: { "bench.keyword": filters.bench } });
+        }
+        if (filters.act_name) {
+            filterClauses.push({
+                nested: {
+                    path: "cited_laws",
+                    query: { terms: { "cited_laws.act_name.keyword": filters.act_name } }
+                }
+            });
+        }
+        if (filters.section_no) {
+            filterClauses.push({
+                nested: {
+                    path: "cited_laws",
+                    query: { terms: { "cited_laws.section_no": filters.section_no } }
+                }
+            });
+        }
+
+        const response = await elasticsearchRequest<any>(`/${ENRICHMENT_INDEX}/_search`, {
+            method: "POST",
+            body: {
+                _source: false,
+                size: esIds.length,
+                query: {
+                    bool: {
+                        filter: filterClauses
+                    }
+                }
+            }
+        });
+
+        const hits = response.hits?.hits || [];
+        return hits.map((h: any) => h._id).filter(Boolean);
+    } catch (err: any) {
+        console.warn("Chroma candidate validation via ES failed, returning all:", err.message);
+        return esIds;
+    }
+}
+
 async function searchWithElasticsearch(body: SearchRequestBody, finalQuery: string): Promise<{
     results: SearchResponseItem[];
     hasMore: boolean;
@@ -174,7 +244,7 @@ async function searchWithElasticsearch(body: SearchRequestBody, finalQuery: stri
 
     try {
         const enrichment = await searchEnrichmentMetadata({
-            query: body.query || finalQuery,
+            query: finalQuery,
             page: 1,
             pageSize: fetchSize,
             filters: buildEnrichmentFilters(body),
@@ -423,7 +493,11 @@ export const searchJudgements = async (
             });
         }
 
-            return scoredJudgments;
+        const chromaIds = scoredJudgments.map((sj) => sj.judgmentId);
+        const validIds = await validateCandidatesWithElasticsearch(chromaIds, req.body);
+        const filteredScoredJudgments = scoredJudgments.filter((sj) => validIds.includes(sj.judgmentId));
+
+        return filteredScoredJudgments;
         })();
 
         const [esRes, scoredJudgments] = await Promise.all([esPromise, chromaPromise]);
