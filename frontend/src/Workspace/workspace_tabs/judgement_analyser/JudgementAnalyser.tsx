@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
 import LoadingLines from "@/components/ui/loading-lines";
@@ -20,6 +20,103 @@ const taskToMongoType: Record<CaseTask, string> = {
   conclusion: "Conclusion"
 };
 
+const applyHighlightsToDoc = (doc: Document, highlights: Highlight[]) => {
+  highlights.forEach(h => {
+    const el = doc.getElementById(h.paraKey);
+    if (!el) return;
+
+    const startOffset = h.offset;
+    const endOffset = h.offset + h.text.length;
+
+    let currentTextOffset = 0;
+    const textNodes: { node: Text, start: number, end: number }[] = [];
+
+    const walk = (node: Node) => {
+      if (node.nodeType === 3) { // Text node
+        const textNode = node as Text;
+        const len = textNode.nodeValue?.length || 0;
+        textNodes.push({
+          node: textNode,
+          start: currentTextOffset,
+          end: currentTextOffset + len
+        });
+        currentTextOffset += len;
+      } else {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          walk(node.childNodes[i]);
+        }
+      }
+    };
+    walk(el);
+
+    const nodesToHighlight = textNodes.filter(tn => tn.end > startOffset && tn.start < endOffset);
+
+    nodesToHighlight.forEach((tn) => {
+      const nodeStart = Math.max(startOffset - tn.start, 0);
+      const nodeEnd = Math.min(endOffset - tn.start, tn.node.nodeValue?.length || 0);
+
+      const val = tn.node.nodeValue || "";
+      const beforeText = val.substring(0, nodeStart);
+      const highlightedText = val.substring(nodeStart, nodeEnd);
+      const afterText = val.substring(nodeEnd);
+
+      const mark = doc.createElement('mark');
+      mark.style.backgroundColor = h.color;
+      mark.style.borderRadius = '2px';
+      mark.style.padding = '0 2px';
+      mark.textContent = highlightedText;
+
+      const parent = tn.node.parentNode;
+      if (parent) {
+        if (afterText) {
+          const afterNode = doc.createTextNode(afterText);
+          parent.insertBefore(afterNode, tn.node.nextSibling);
+        }
+        parent.insertBefore(mark, tn.node.nextSibling);
+        if (beforeText) {
+          tn.node.nodeValue = beforeText;
+        } else {
+          parent.removeChild(tn.node);
+        }
+      }
+    });
+  });
+};
+
+const clearHighlightsInDoc = (doc: Document) => {
+  const marks = Array.from(doc.querySelectorAll("mark"));
+  marks.forEach(mark => {
+    const parent = mark.parentNode;
+    if (parent) {
+      const textNode = doc.createTextNode(mark.textContent || "");
+      parent.insertBefore(textNode, mark);
+      parent.removeChild(mark);
+      parent.normalize();
+    }
+  });
+};
+
+const getFilteredHtmlContent = (html: string, task: TaskType): string => {
+  if (task === "full") return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  const expectedTitle = taskToMongoType[task as CaseTask];
+  const judgmentsContainer = doc.querySelector('.judgments') || doc.body;
+  const children = Array.from(judgmentsContainer.children);
+
+  children.forEach(child => {
+    const titleAttr = child.getAttribute('title');
+    if (titleAttr !== expectedTitle) {
+      child.remove();
+    }
+  });
+
+  return doc.documentElement.outerHTML;
+};
+
+
 interface TextBlock {
   type: string;
   content: string;
@@ -34,10 +131,48 @@ interface CaseDoc {
   texts: TextBlock[];
   createdAt: string;
   summary?: any;
+  htmlContent?: string;
+  htmlSource?: string;
 }
+
+const renderFormattedTitle = (title: string) => {
+  // Try to extract "on <date>" suffix from the title
+  const dateMatch = title.match(/\s+on\s+(\d{1,2}\s+\w+,?\s+\d{4})$/i);
+  const titleWithoutDate = dateMatch ? title.substring(0, dateMatch.index).trim() : title;
+  const dateSuffix = dateMatch ? dateMatch[1] : null;
+
+  const vsMatch = titleWithoutDate.match(/^(.*?)\s+\b(vs\.?|v\\.?|versus)\b\s+(.*)$/i);
+  if (vsMatch) {
+    const [, petitioner, , respondent] = vsMatch;
+    return (
+      <div className={styles.caseCaption}>
+        <div className={styles.captionPartyBlock}>
+          <span className={styles.captionLabel}>Petitioner</span>
+          <h1 className={styles.captionPartyName}>{petitioner}</h1>
+        </div>
+        <div className={styles.captionVsRow}>
+          <div className={styles.captionVsLine} />
+          <span className={styles.captionVsText}>vs.</span>
+          <div className={styles.captionVsLine} />
+        </div>
+        <div className={styles.captionPartyBlock}>
+          <span className={styles.captionLabel}>Respondent</span>
+          <h1 className={styles.captionPartyName}>{respondent}</h1>
+        </div>
+        {dateSuffix && (
+          <div className={styles.captionDateRow}>
+            <span className={styles.captionDateText}>Decided on {dateSuffix}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return <h1 className={styles.title}>{title}</h1>;
+};
 
 const JudgementAnalyser: React.FC = () => {
   const { caseId } = useParams<{ caseId: string }>();
+  const navigate = useNavigate();
   const [activeTask, setActiveTask] = useState<TaskType>("full");
   const [loading, setLoading] = useState(false);
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
@@ -52,16 +187,153 @@ const JudgementAnalyser: React.FC = () => {
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
   const [currentHighlightIndices, setCurrentHighlightIndices] = useState<Record<string, number>>({});
   const mainRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const handleIframeLoad = () => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    // 1. Inject temporary highlight animation styles
+    if (!doc.getElementById('iframe-highlight-styles')) {
+      const style = doc.createElement('style');
+      style.id = 'iframe-highlight-styles';
+      style.textContent = `
+        @keyframes iframePulseHighlight {
+          0% { background-color: rgba(254, 240, 138, 0); }
+          15% { background-color: rgba(254, 240, 138, 0.8); }
+          85% { background-color: rgba(254, 240, 138, 0.8); }
+          100% { background-color: rgba(254, 240, 138, 0); }
+        }
+        .iframe-temp-highlight {
+          animation: iframePulseHighlight 2.5s ease-out;
+          position: relative;
+          border-radius: 4px;
+        }
+      `;
+      doc.head.appendChild(style);
+    }
+
+    // 2. Setup selection change listener
+    const handleIframeSelection = () => {
+      const selection = iframe.contentWindow?.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        setSelectionMenu(null);
+        return;
+      }
+
+      const text = selection.toString().trim();
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const iframeRect = iframe.getBoundingClientRect();
+
+      const startPara = range.startContainer.nodeType === 1 
+        ? (range.startContainer as HTMLElement).closest('p, blockquote, pre') 
+        : range.startContainer.parentElement?.closest('p, blockquote, pre');
+      const endPara = range.endContainer.nodeType === 1 
+        ? (range.endContainer as HTMLElement).closest('p, blockquote, pre') 
+        : range.endContainer.parentElement?.closest('p, blockquote, pre');
+
+      let paraKey: string | undefined;
+      let offset: number | undefined;
+
+      if (startPara && startPara === endPara && startPara.id) {
+        paraKey = startPara.id;
+        const preRange = doc.createRange();
+        preRange.selectNodeContents(startPara);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        offset = preRange.toString().length;
+      }
+
+      if (paraKey && offset !== undefined) {
+        setSelectionMenu({
+          x: iframeRect.left + rect.left + rect.width / 2,
+          y: iframeRect.top + rect.top,
+          text,
+          paraKey,
+          offset
+        });
+      }
+    };
+
+    doc.addEventListener("selectionchange", handleIframeSelection);
+
+    // Clear selection menu if clicking outside selection but inside iframe
+    const handleIframeClick = () => {
+      const selection = iframe.contentWindow?.getSelection();
+      if (!selection || selection.isCollapsed) {
+        setSelectionMenu(null);
+      }
+    };
+    doc.addEventListener("mousedown", handleIframeClick);
+
+    // 3. Apply initial highlights
+    if (highlights && highlights.length > 0) {
+      applyHighlightsToDoc(doc, highlights);
+    }
+  };
+
+  // Dynamically apply highlights to the iframe document when highlights state changes
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    // Clear previous marks and re-apply
+    clearHighlightsInDoc(doc);
+    if (highlights && highlights.length > 0) {
+      applyHighlightsToDoc(doc, highlights);
+    }
+  }, [highlights]);
 
   const navigateByColor = (color: string, direction: 'next' | 'prev') => {
+    const iframe = iframeRef.current;
+    const isIframeActive = !!(iframe && iframe.contentDocument && iframe.contentWindow);
+    const doc = isIframeActive ? iframe.contentDocument! : document;
+
     const colorHighlights = highlights
       .filter(h => h.color === color)
       .sort((a, b) => {
-        const [aBlock, aLine] = a.paraKey.split('-').map(Number);
-        const [bBlock, bLine] = b.paraKey.split('-').map(Number);
-        if (aBlock !== bBlock) return aBlock - bBlock;
-        if (aLine !== bLine) return aLine - bLine;
-        return a.offset - b.offset;
+        const elA = doc.getElementById(a.paraKey) || doc.querySelector(`[data-para-key="${a.paraKey}"]`);
+        const elB = doc.getElementById(b.paraKey) || doc.querySelector(`[data-para-key="${b.paraKey}"]`);
+
+        if (elA && elB) {
+          if (elA === elB) {
+            return a.offset - b.offset;
+          }
+          const position = elA.compareDocumentPosition(elB);
+          if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+            return -1;
+          }
+          if (position & Node.DOCUMENT_POSITION_PRECEDING) {
+            return 1;
+          }
+        }
+
+        // Fallback numeric parsing if elements aren't in DOM
+        const getNumericParts = (key: string) => {
+          const matches = key.match(/\d+/g);
+          return matches ? matches.map(Number) : [];
+        };
+
+        const aParts = getNumericParts(a.paraKey);
+        const bParts = getNumericParts(b.paraKey);
+
+        for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
+          if (aParts[i] !== bParts[i]) {
+            return aParts[i] - bParts[i];
+          }
+        }
+
+        if (aParts.length !== bParts.length) {
+          return aParts.length - bParts.length;
+        }
+
+        return a.paraKey.localeCompare(b.paraKey) || a.offset - b.offset;
       });
 
     if (colorHighlights.length === 0) return;
@@ -76,66 +348,88 @@ const JudgementAnalyser: React.FC = () => {
     setCurrentHighlightIndices(prev => ({ ...prev, [color]: nextIndex }));
     const target = colorHighlights[nextIndex];
     
-    const element = document.querySelector(`[data-para-key="${target.paraKey}"]`) as HTMLElement;
+    const element = (doc.getElementById(target.paraKey) || doc.querySelector(`[data-para-key="${target.paraKey}"]`)) as HTMLElement | null;
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Temporary flash to show which one is selected
+      
+      const originalOutline = element.style.outline;
+      const originalOutlineOffset = element.style.outlineOffset;
       element.style.outline = `2px solid ${color}`;
       element.style.outlineOffset = '2px';
       setTimeout(() => {
-        element.style.outline = 'none';
+        if (element) {
+          element.style.outline = originalOutline;
+          element.style.outlineOffset = originalOutlineOffset;
+        }
       }, 1500);
     }
   };
 
   const addHighlight = (color: string) => {
-    const selection = window.getSelection();
+    const iframe = iframeRef.current;
+    const isIframeActive = !!(iframe && iframe.contentDocument && iframe.contentWindow);
+    const win = isIframeActive ? iframe.contentWindow : window;
+    const doc = isIframeActive ? iframe.contentDocument : document;
+
+    const selection = win.getSelection();
     if (!selection || selection.rangeCount === 0) return;
     
     const range = selection.getRangeAt(0);
-    const container = document.querySelector(`.${styles.judgmentSection}`);
-    if (!container) return;
-
-    const allParas = Array.from(container.querySelectorAll('p[data-para-key]')) as HTMLElement[];
-    const newHighlights: Highlight[] = [];
-
-    allParas.forEach(para => {
-      if (selection.containsNode(para, true)) {
-        const paraKey = para.getAttribute('data-para-key')!;
-        let startOffset = 0;
-        let endOffset = para.textContent?.length || 0;
-
-        // If selection starts in this para
-        if (para.contains(range.startContainer)) {
-          const preRange = document.createRange();
-          preRange.selectNodeContents(para);
-          preRange.setEnd(range.startContainer, range.startOffset);
-          startOffset = preRange.toString().length;
-        }
-
-        // If selection ends in this para
-        if (para.contains(range.endContainer)) {
-          const preRange = document.createRange();
-          preRange.selectNodeContents(para);
-          preRange.setEnd(range.endContainer, range.endOffset);
-          endOffset = preRange.toString().length;
-        }
-
-        const text = para.textContent?.substring(startOffset, endOffset) || "";
-        if (text.trim()) {
-          newHighlights.push({
-            id: `${Date.now()}-${Math.random()}`,
-            text,
-            color,
-            paraKey,
-            offset: startOffset
-          });
-        }
+    
+    if (isIframeActive) {
+      if (selectionMenu?.paraKey && selectionMenu?.offset !== undefined) {
+        const newHighlight: Highlight = {
+          id: `${Date.now()}-${Math.random()}`,
+          text: selectionMenu.text,
+          color,
+          paraKey: selectionMenu.paraKey,
+          offset: selectionMenu.offset
+        };
+        updateCase(caseId || "", { highlights: [...highlights, newHighlight] });
       }
-    });
+    } else {
+      const container = doc.querySelector(`.${styles.judgmentSection}`);
+      if (!container) return;
 
-    if (newHighlights.length > 0) {
-      updateCase(caseId || "", { highlights: [...highlights, ...newHighlights] });
+      const allParas = Array.from(container.querySelectorAll('p[data-para-key]')) as HTMLElement[];
+      const newHighlights: Highlight[] = [];
+
+      allParas.forEach(para => {
+        if (selection.containsNode(para, true)) {
+          const paraKey = para.getAttribute('data-para-key')!;
+          let startOffset = 0;
+          let endOffset = para.textContent?.length || 0;
+
+          if (para.contains(range.startContainer)) {
+            const preRange = doc.createRange();
+            preRange.selectNodeContents(para);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            startOffset = preRange.toString().length;
+          }
+
+          if (para.contains(range.endContainer)) {
+            const preRange = doc.createRange();
+            preRange.selectNodeContents(para);
+            preRange.setEnd(range.endContainer, range.endOffset);
+            endOffset = preRange.toString().length;
+          }
+
+          const text = para.textContent?.substring(startOffset, endOffset) || "";
+          if (text.trim()) {
+            newHighlights.push({
+              id: `${Date.now()}-${Math.random()}`,
+              text,
+              color,
+              paraKey,
+              offset: startOffset
+            });
+          }
+        }
+      });
+
+      if (newHighlights.length > 0) {
+        updateCase(caseId || "", { highlights: [...highlights, ...newHighlights] });
+      }
     }
     
     setSelectionMenu(null);
@@ -185,16 +479,22 @@ const JudgementAnalyser: React.FC = () => {
   useEffect(() => {
     if (caseId) {
       fetchCaseDetails(caseId);
+    } else {
+      // Default fallback to show Siddharam Satlingappa Mhetre (1108032)
+      fetchCaseDetails("69c1370e5b49900fda48a5fb");
     }
   }, [caseId]);
 
   const navigateToPin = (id: string, fullText: string, paraKey?: string) => {
-    // If we have the exact paragraph key, navigate directly to it
+    const iframe = iframeRef.current;
+    const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
+    const doc = iframeDoc || document;
+
     const foundElement = paraKey
-      ? (document.querySelector(`[data-para-key="${paraKey}"]`) as HTMLElement | null)
+      ? (doc.getElementById(paraKey) as HTMLElement | null || doc.querySelector(`[data-para-key="${paraKey}"]`) as HTMLElement | null)
       : (() => {
-          // Fallback: scan all paragraphs by text content
-          for (const el of Array.from(document.querySelectorAll('[data-para-key]')) as HTMLElement[]) {
+          const selector = iframeDoc ? 'p, blockquote, pre' : '[data-para-key]';
+          for (const el of Array.from(doc.querySelectorAll(selector)) as HTMLElement[]) {
             if (el.textContent?.includes(fullText)) return el;
           }
           return null;
@@ -204,8 +504,7 @@ const JudgementAnalyser: React.FC = () => {
       foundElement.scrollIntoView({ behavior: "smooth", block: "center" });
       setActiveHighlightId(id);
 
-      // Temporarily flash-highlight the paragraph
-      const highlightClass = styles.temporaryHighlight;
+      const highlightClass = iframeDoc ? "iframe-temp-highlight" : styles.temporaryHighlight;
       foundElement.classList.add(highlightClass);
 
       setTimeout(() => {
@@ -219,6 +518,11 @@ const JudgementAnalyser: React.FC = () => {
     const handleSelection = () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        const iframe = iframeRef.current;
+        const iframeSelection = iframe?.contentWindow?.getSelection();
+        if (iframeSelection && !iframeSelection.isCollapsed && iframeSelection.toString().trim()) {
+          return;
+        }
         setSelectionMenu(null);
         return;
       }
@@ -227,12 +531,10 @@ const JudgementAnalyser: React.FC = () => {
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
 
-      // Ensure the selection is within the judgment section
       const container = document.querySelector(`.${styles.judgmentSection}`);
       const commonAncestor = range.commonAncestorContainer;
       
       if (container && container.contains(commonAncestor)) {
-        // Check if start and end are in the same paragraph
         const startPara = range.startContainer.nodeType === 1 ? (range.startContainer as HTMLElement).closest('p') : range.startContainer.parentElement?.closest('p');
         const endPara = range.endContainer.nodeType === 1 ? (range.endContainer as HTMLElement).closest('p') : range.endContainer.parentElement?.closest('p');
         
@@ -269,11 +571,12 @@ const JudgementAnalyser: React.FC = () => {
       id: Date.now().toString(),
       text: text.length > 50 ? text.substring(0, 50) + "..." : text,
       fullText: text,
-      paraKey: selectionMenu?.paraKey,  // store exact paragraph location
+      paraKey: selectionMenu?.paraKey,
     };
     updateCase(caseId || "", { pins: [...pins, newPin] });
     setSelectionMenu(null);
     window.getSelection()?.removeAllRanges();
+    iframeRef.current?.contentWindow?.getSelection()?.removeAllRanges();
   };
 
   const removePin = (id: string) => {
@@ -287,12 +590,35 @@ const JudgementAnalyser: React.FC = () => {
       if (!res.ok) throw new Error("Failed to fetch judgment");
       const data = await res.json();
       setCaseData(data);
+      console.log(`[VERIFICATION] Judgment Loaded: "${data.title}" | HTML Source: ${data.htmlSource || (data.htmlContent ? "mongodb" : "fallback_text")}`);
+      if (id !== data._id && navigate) {
+        navigate(`/workspace/${data._id}`, { replace: true });
+      }
     } catch (err) {
       console.error("Error fetching judgment details:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleIframeMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "LOAD_JUDGEMENT_BY_DOC_ID") {
+        const docId = event.data.docId;
+        console.log("Loading judgment by docId:", docId);
+        if (navigate) {
+          navigate(`/workspace/${docId}`);
+        } else {
+          fetchCaseDetails(docId);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleIframeMessage);
+    return () => {
+      window.removeEventListener("message", handleIframeMessage);
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (caseData && caseData.texts) {
@@ -387,35 +713,56 @@ const JudgementAnalyser: React.FC = () => {
 
             {caseData ? (
               <div className={styles.originalJudgement}>
-                <div className={styles.metadata}>
-                  <div className={styles.metaChip}>
-                    <span className={`${styles.materialIcon} ${styles.iconExtraSmall}`}>balance</span>
-                    {caseData.judgement_type}
-                  </div>
-                  <div className={styles.metaChip}>
-                    <span className={`${styles.materialIcon} ${styles.iconExtraSmall}`}>tag</span>
-                    {caseData.year}
-                  </div>
-                  <div className={styles.dateChip}>
-                    <span className={`${styles.materialIcon} ${styles.iconExtraSmall}`}>calendar_today</span>
-                    {caseData.createdAt ? new Date(caseData.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "N/A"}
-                  </div>
-                </div>
+                <div className={styles.caseHeader}>
+                  {renderFormattedTitle(caseData.title)}
 
-                <h1 className={styles.title}>{caseData.title}</h1>
-
-                <div className={styles.benchInfo}>
-                  <span className={`${styles.materialIcon} ${styles.iconMedium} ${styles.iconGray}`}>gavel</span>
-                  <div className={styles.benchText}>
-                    <span className={styles.benchLabel}>Judges on the Bench</span>
-                    <span className={styles.benchNames}>
-                      {caseData.bench && caseData.bench.length > 0 ? caseData.bench.join(", ") : "Not specified"}
-                    </span>
+                  <div className={styles.caseMetaGrid}>
+                    <div className={styles.caseMetaItem}>
+                      <span className={styles.caseMetaLabel}>Court</span>
+                      <span className={styles.caseMetaValue}>{caseData.judgement_type || "Supreme Court of India"}</span>
+                    </div>
+                    <div className={styles.caseMetaDivider} />
+                    <div className={styles.caseMetaItem}>
+                      <span className={styles.caseMetaLabel}>Year</span>
+                      <span className={styles.caseMetaValue}>{caseData.year}</span>
+                    </div>
+                    <div className={styles.caseMetaDivider} />
+                    <div className={styles.caseMetaItem}>
+                      <span className={styles.caseMetaLabel}>Bench</span>
+                      <span className={styles.caseMetaValue}>
+                        {caseData.bench && caseData.bench.length > 0 ? caseData.bench.join(", ") : "Not specified"}
+                      </span>
+                    </div>
+                    {caseData.createdAt && (
+                      <>
+                        <div className={styles.caseMetaDivider} />
+                        <div className={styles.caseMetaItem}>
+                          <span className={styles.caseMetaLabel}>Filed</span>
+                          <span className={styles.caseMetaValue}>
+                            {new Date(caseData.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className={styles.judgmentText}>
-                  {(activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask])).length > 0 ? (
+                  {caseData.htmlContent ? (
+                    <iframe
+                      ref={iframeRef}
+                      onLoad={handleIframeLoad}
+                      srcDoc={getFilteredHtmlContent(caseData.htmlContent, activeTask)}
+                      title={activeTask === "full" ? "Full Judgement" : activeTask}
+                      style={{
+                        width: "100%",
+                        height: "calc(100vh - 250px)",
+                        border: "none",
+                        borderRadius: "8px",
+                        backgroundColor: "#ffffff"
+                      }}
+                    />
+                  ) : (activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask])).length > 0 ? (
                     (activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask]))
                       .map((t, idx) => (
                         <React.Fragment key={idx}>

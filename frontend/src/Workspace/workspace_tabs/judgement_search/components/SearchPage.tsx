@@ -34,8 +34,13 @@ export default function SearchPage() {
     search, appState, pinnedCases, togglePin,
     jurisdiction, setJurisdiction,
     year, setYear,
+    yearFrom, setYearFrom,
+    yearTo, setYearTo,
     status, setStatus,
     area, setArea,
+    bench, setBench,
+    actName, setActName,
+    sectionNo, setSectionNo,
     resetFilters,
     searchSource,
     setSearchSource,
@@ -169,7 +174,7 @@ export default function SearchPage() {
           </button>
           
           {/* Active filter chips */}
-          {(jurisdiction || year || status || area) && (
+          {(jurisdiction || year || yearFrom || yearTo || status || area || bench || actName || sectionNo) && (
             <button className={styles.clearAllBtn} onClick={resetFilters}>Clear all</button>
           )}
         </div>
@@ -192,13 +197,24 @@ export default function SearchPage() {
               </div>
 
               <div className={styles.filterGroup}>
-                <label className={styles.filterLabel}>Year</label>
+                <label className={styles.filterLabel}>Year From</label>
+                <input 
+                  type="number"
+                  className={styles.filterInput}
+                  placeholder="e.g. 2018"
+                  value={yearFrom}
+                  onChange={(e) => setYearFrom(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Year To</label>
                 <input 
                   type="number"
                   className={styles.filterInput}
                   placeholder="e.g. 2023"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
+                  value={yearTo}
+                  onChange={(e) => setYearTo(e.target.value)}
                 />
               </div>
 
@@ -229,6 +245,39 @@ export default function SearchPage() {
                   <option value="Constitutional">Constitutional</option>
                   <option value="Taxation">Taxation</option>
                 </select>
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Judge / Bench</label>
+                <input 
+                  type="text"
+                  className={styles.filterInput}
+                  placeholder="e.g. Chandrachud"
+                  value={bench}
+                  onChange={(e) => setBench(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Act Name</label>
+                <input 
+                  type="text"
+                  className={styles.filterInput}
+                  placeholder="e.g. Evidence Act"
+                  value={actName}
+                  onChange={(e) => setActName(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Section No</label>
+                <input 
+                  type="text"
+                  className={styles.filterInput}
+                  placeholder="e.g. 302"
+                  value={sectionNo}
+                  onChange={(e) => setSectionNo(e.target.value)}
+                />
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import documentRoutes from "./routes/document.routes";
 import JDSearchRouter from "./routes/JDSearch.routes";
 import firmPrecedentRoutes from "./routes/firmPrecedent.routes";
 import authRoutes from "./routes/auth.routes.js";
+import enrichmentSearchRouter from "./routes/enrichmentSearch.routes";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/api/auth", authRoutes);
 
 app.use("/api/documents", documentRoutes);
 app.use("/api/judgements", JDSearchRouter);
+app.use("/api/judgement-enrichment", enrichmentSearchRouter);
 app.use("/api/firm-precedents", firmPrecedentRoutes);
 
 

@@ -13,6 +13,12 @@ export interface JudgmentListItem {
   short_hand_title: string;
   judgement_type: string;
   year: number;
+  citation?: string;
+  bench?: string[];
+  subject_areas?: string[];
+  keywords?: string[];
+  match_reasons?: string[];
+  search_source?: "elasticsearch" | "chroma" | "mongo";
 }
 
 /** Full case detail — loaded separately when a judgment is selected */
@@ -69,10 +75,20 @@ interface JDSearchContextValue {
   setJurisdiction: (val: string) => void;
   year: string;
   setYear: (val: string) => void;
+  yearFrom: string;
+  setYearFrom: (val: string) => void;
+  yearTo: string;
+  setYearTo: (val: string) => void;
   status: string;
   setStatus: (val: string) => void;
   area: string;
   setArea: (val: string) => void;
+  bench: string;
+  setBench: (val: string) => void;
+  actName: string;
+  setActName: (val: string) => void;
+  sectionNo: string;
+  setSectionNo: (val: string) => void;
   resetFilters: () => void;
 
   // actions
@@ -207,8 +223,13 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
 
   const [jurisdiction, setJurisdiction] = useState<string>("");
   const [year, setYear] = useState<string>("");
+  const [yearFrom, setYearFrom] = useState<string>("");
+  const [yearTo, setYearTo] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [area, setArea] = useState<string>("");
+  const [bench, setBench] = useState<string>("");
+  const [actName, setActName] = useState<string>("");
+  const [sectionNo, setSectionNo] = useState<string>("");
 
   useEffect(() => {
     if (caseId) {
@@ -225,16 +246,26 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
   const resetFilters = useCallback(() => {
     setJurisdiction("");
     setYear("");
+    setYearFrom("");
+    setYearTo("");
     setStatus("");
     setArea("");
+    setBench("");
+    setActName("");
+    setSectionNo("");
   }, []);
 
   const getFilterParams = useCallback(() => ({
     jurisdiction,
     year: year ? parseInt(year) : undefined,
+    yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
+    yearTo: yearTo ? parseInt(yearTo) : undefined,
     status,
-    area
-  }), [jurisdiction, year, status, area]);
+    area,
+    bench: bench ? [bench] : undefined,
+    act_name: actName ? [actName] : undefined,
+    section_no: sectionNo ? [sectionNo] : undefined,
+  }), [jurisdiction, year, yearFrom, yearTo, status, area, bench, actName, sectionNo]);
 
   // ── Initial search ──────────────────────────────────────────────────────────
   const search = useCallback(async (q: string) => {
@@ -340,10 +371,20 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
         setJurisdiction,
         year,
         setYear,
+        yearFrom,
+        setYearFrom,
+        yearTo,
+        setYearTo,
         status,
         setStatus,
         area,
         setArea,
+        bench,
+        setBench,
+        actName,
+        setActName,
+        sectionNo,
+        setSectionNo,
         resetFilters,
         search,
         refineSearch,

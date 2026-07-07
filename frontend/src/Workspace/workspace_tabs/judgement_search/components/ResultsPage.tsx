@@ -98,6 +98,7 @@ function ResultCard({
             {courtLabel(item.judgement_type)}
           </span>
           <span className={styles.yearTag}>{item.year}</span>
+          {item.citation && <span className={styles.yearTag}>{item.citation}</span>}
         </div>
       </div>
 
@@ -290,10 +291,20 @@ export default function ResultsPage() {
     setJurisdiction,
     year,
     setYear,
+    yearFrom,
+    setYearFrom,
+    yearTo,
+    setYearTo,
     status,
     setStatus,
     area,
     setArea,
+    bench,
+    setBench,
+    actName,
+    setActName,
+    sectionNo,
+    setSectionNo,
     resetFilters,
     refineSearch,
     loadMore,
@@ -348,14 +359,31 @@ export default function ResultsPage() {
             </select>
           </div>
 
-          {/* Year */}
+          {/* Year From */}
           <div className={styles.filterSelectWrapper}>
             <input 
               type="number"
               className={styles.filterYearInput}
-              placeholder="Year (e.g. 2023)"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
+              placeholder="Year From"
+              value={yearFrom}
+              onChange={(e) => setYearFrom(e.target.value)}
+              onBlur={() => {
+                if (query) refineSearch(query);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query) refineSearch(query);
+              }}
+            />
+          </div>
+
+          {/* Year To */}
+          <div className={styles.filterSelectWrapper}>
+            <input 
+              type="number"
+              className={styles.filterYearInput}
+              placeholder="Year To"
+              value={yearTo}
+              onChange={(e) => setYearTo(e.target.value)}
               onBlur={() => {
                 if (query) refineSearch(query);
               }}
@@ -398,6 +426,57 @@ export default function ResultsPage() {
               <option value="Constitutional">Constitutional</option>
               <option value="Taxation">Taxation</option>
             </select>
+          </div>
+
+          {/* Judge/Bench */}
+          <div className={styles.filterSelectWrapper}>
+            <input 
+              type="text"
+              className={styles.filterYearInput}
+              placeholder="Judge / Bench"
+              value={bench}
+              onChange={(e) => setBench(e.target.value)}
+              onBlur={() => {
+                if (query) refineSearch(query);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query) refineSearch(query);
+              }}
+            />
+          </div>
+
+          {/* Act Name */}
+          <div className={styles.filterSelectWrapper}>
+            <input 
+              type="text"
+              className={styles.filterYearInput}
+              placeholder="Act Name"
+              value={actName}
+              onChange={(e) => setActName(e.target.value)}
+              onBlur={() => {
+                if (query) refineSearch(query);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query) refineSearch(query);
+              }}
+            />
+          </div>
+
+          {/* Section No */}
+          <div className={styles.filterSelectWrapper}>
+            <input 
+              type="text"
+              className={styles.filterYearInput}
+              placeholder="Section No"
+              value={sectionNo}
+              onChange={(e) => setSectionNo(e.target.value)}
+              onBlur={() => {
+                if (query) refineSearch(query);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query) refineSearch(query);
+              }}
+            />
           </div>
         </div>
         <div className={styles.divider} />

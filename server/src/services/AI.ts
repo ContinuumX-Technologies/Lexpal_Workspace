@@ -12,6 +12,10 @@ export type EmbeddingVector = number[];
 // 1. Get Embedding
 // -------------------------------
 
+// LRU Cache for Embeddings
+const embeddingCache = new Map<string, EmbeddingVector>();
+const MAX_CACHE_SIZE = 1000;
+
 export async function getEmbedding(
   text: string
 ): Promise<EmbeddingVector> {
@@ -19,12 +23,25 @@ export async function getEmbedding(
     throw new Error("Empty text provided for embedding");
   }
 
+  const cacheKey = text.trim();
+  if (embeddingCache.has(cacheKey)) {
+    return embeddingCache.get(cacheKey)!;
+  }
+
   const response = await openaiClient.embeddings.create({
     model: "text-embedding-3-small", // fast + cheap
     input: text,
   });
 
-  return response.data[0].embedding;
+  const vector = response.data[0].embedding;
+  
+  if (embeddingCache.size >= MAX_CACHE_SIZE) {
+    // Delete oldest (first) entry to prevent memory leak
+    embeddingCache.delete(embeddingCache.keys().next().value as string);
+  }
+  embeddingCache.set(cacheKey, vector);
+
+  return vector;
 }
 
 // -------------------------------
@@ -140,5 +157,110 @@ Return ONLY a valid JSON array of strings in the same order.
   } catch (err) {
     console.error("Short title parse error:", content);
     throw new Error("Failed to parse short titles");
+  }
+}
+
+// -------------------------------
+// 4. Query Intent & Filter Extraction
+// -------------------------------
+
+export interface SearchFilters {
+  refinedQuery: string;
+  year?: number;
+  bench?: string[];
+  act_name?: string[];
+  section_no?: string[];
+  jurisdiction?: string;
+}
+
+// LRU Cache for Search Filters
+const filterCache = new Map<string, SearchFilters>();
+
+export async function extractSearchFilters(
+  query: string
+): Promise<SearchFilters> {
+  if (!query || !query.trim()) {
+    throw new Error("Empty query provided");
+  }
+
+  const cacheKey = query.trim();
+  if (filterCache.has(cacheKey)) {
+    return filterCache.get(cacheKey)!;
+  }
+
+  const prompt = `
+You are a legal search intent extractor. 
+Parse the user's natural language query into structured filters and a refined semantic search query.
+
+Rules:
+1. Extract any mentioned years into 'year'.
+2. Extract any mentioned judge names into 'bench' (e.g. "D.Y. Chandrachud").
+3. Extract any mentioned statutes or acts into 'act_name' (e.g. "Indian Penal Code", "Constitution of India").
+4. Extract any mentioned section numbers or articles into 'section_no' (e.g. "302", "14").
+5. Extract the court/jurisdiction if specified into 'jurisdiction' (e.g. "Supreme court").
+6. The 'refinedQuery' should be a concise, keyword-rich string describing the core legal issue without the extracted filters (e.g., if query is "murder cases in 2018", refinedQuery is "murder").
+
+User Query:
+"${query}"
+`;
+
+  const response = await openaiClient.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "extract_filters",
+          description: "Extracts structured search filters from the query",
+          parameters: {
+            type: "object",
+            properties: {
+              refinedQuery: { type: "string" },
+              year: { type: "number" },
+              bench: { type: "array", items: { type: "string" } },
+              act_name: { type: "array", items: { type: "string" } },
+              section_no: { type: "array", items: { type: "string" } },
+              jurisdiction: { type: "string" },
+            },
+            required: ["refinedQuery"],
+            additionalProperties: false,
+          },
+        }
+      }
+    ],
+    tool_choice: { type: "function", function: { name: "extract_filters" } }
+  });
+
+  const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+  if (!toolCall) {
+    return { refinedQuery: query };
+  }
+
+  try {
+    const args = JSON.parse(toolCall.function.arguments);
+    const result = {
+      refinedQuery: args.refinedQuery || query,
+      year: args.year,
+      bench: args.bench?.length ? args.bench : undefined,
+      act_name: args.act_name?.length ? args.act_name : undefined,
+      section_no: args.section_no?.length ? args.section_no : undefined,
+      jurisdiction: args.jurisdiction,
+    };
+    
+    if (filterCache.size >= MAX_CACHE_SIZE) {
+      filterCache.delete(filterCache.keys().next().value as string);
+    }
+    filterCache.set(cacheKey, result);
+    return result;
+  } catch (err) {
+    console.error("Failed to parse tool call arguments", err);
+    return { refinedQuery: query };
   }
 }

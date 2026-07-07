@@ -238,100 +238,137 @@
   margin: 0 auto;
 }
 
-.metadata {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 40px;
-  background: #f8fafc;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid #f1f5f9;
-  width: fit-content;
+/* ──────────────────────────────────────────────
+   Case Header — unified card with left accent
+   ────────────────────────────────────────────── */
+.caseHeader {
+  margin-top: 8px;
+  margin-bottom: 32px;
+  border-left: 3px solid #0f172a;
+  background-color: #fafbfc;
+  border-radius: 0 8px 8px 0;
+  overflow: hidden;
 }
 
-.metaChip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-radius: 8px;
-  background-color: white;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* ── Caption ── */
+.caseCaption {
+  padding: 24px 28px 20px 28px;
 }
 
-.metaChip:hover {
-  border-color: #cbd5e1;
-  background-color: #fcfcfc;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.dateChip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 6px 14px;
-  border-radius: 8px;
-  background-color: transparent;
-  transition: color 0.2s ease;
-}
-
-.dateChip:hover {
-  color: #1e293b;
-}
-
-.title {
-  font-size: 36px;
-  font-weight: bold;
-  margin-bottom: 24px;
-  color: black;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.benchInfo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 40px;
-  font-size: 13px;
-  color: #4b5563;
-  background-color: rgba(249, 250, 251, 0.5);
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid #f3f4f6;
-}
-
-.benchText {
+.captionPartyBlock {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
-.benchLabel {
-  font-size: 10px;
-  font-weight: bold;
+.captionLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.captionPartyName {
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.captionVsRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0;
+}
+
+.captionVsLine {
+  flex: 1;
+  height: 1px;
+  background-color: #e2e8f0;
+}
+
+.captionVsText {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  font-style: italic;
+  color: #64748b;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.captionDateRow {
+  margin-top: 14px;
+}
+
+.captionDateText {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* Fallback plain title (no "vs.") */
+.title {
+  font-family: 'Inter', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  padding: 24px 28px 20px 28px;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}
+
+/* ── Metadata strip ── */
+.caseMetaGrid {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-top: 1px solid #e8ecf1;
+  background-color: #f1f4f8;
+}
+
+.caseMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 20px;
+  min-width: 0;
+}
+
+.caseMetaLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #9ca3af;
+  color: #94a3b8;
+  line-height: 1;
 }
 
-.benchNames {
+.caseMetaValue {
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
   font-weight: 600;
-  color: #111827;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+.caseMetaDivider {
+  width: 1px;
+  align-self: stretch;
+  background-color: #dde3ea;
+  flex-shrink: 0;
 }
 
 /* Judgment paragraphs */
