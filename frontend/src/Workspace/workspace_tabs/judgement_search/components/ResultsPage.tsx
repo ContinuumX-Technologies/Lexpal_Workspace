@@ -128,6 +128,8 @@ function CasePreview({
   onPin: () => void;
   onViewFull: () => void;
 }) {
+  const { summaryLoading } = useJDSearch();
+
   return (
     <>
       <div className={styles.previewHeader}>
@@ -176,14 +178,26 @@ function CasePreview({
       <div className={styles.previewBody}>
         <div className={styles.overviewBox}>
           <span className={styles.boxLabel}>Case Overview</span>
-          <p className={styles.overviewText}>{c.summary}</p>
+          {summaryLoading ? (
+            <div className={styles.skeletonBlock} style={{ marginTop: "0.5rem" }}>
+              {[95, 90, 92].map((w, i) => (
+                <div key={i} className={styles.skeletonPara} style={{ width: `${w}%`, height: "14px", margin: "6px 0" }} />
+              ))}
+            </div>
+          ) : (
+            <p className={styles.overviewText}>{c.summary}</p>
+          )}
         </div>
 
         <div className={styles.outcomeStrip}>
           <span className={`material-symbols-outlined ${styles.outcomeIcon}`}>verified</span>
-          <div>
+          <div style={{ width: "100%" }}>
             <span className={styles.outcomeStripLabel}>Judgment Outcome</span>
-            <div className={styles.outcomeStripTitle} style={{ whiteSpace: "pre-wrap", marginTop: "0.25rem", lineHeight: "1.5" }}>{c.outcome}</div>
+            {summaryLoading ? (
+              <div className={styles.skeletonPara} style={{ width: "40%", height: "16px", marginTop: "0.25rem" }} />
+            ) : (
+              <div className={styles.outcomeStripTitle} style={{ whiteSpace: "pre-wrap", marginTop: "0.25rem", lineHeight: "1.5" }}>{c.outcome}</div>
+            )}
           </div>
         </div>
 
@@ -191,8 +205,10 @@ function CasePreview({
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             <div className={styles.decisionBlock}>
               <span className={styles.decisionTag}>Final Decision</span>
-              <div className={styles.decisionText} style={{ whiteSpace: "pre-wrap", marginTop: "0.5rem", lineHeight: "1.5" }}>
-                {c.finalDecision ? (
+              <div className={styles.decisionText} style={{ whiteSpace: "pre-wrap", marginTop: "0.5rem", lineHeight: "1.5", width: "100%" }}>
+                {summaryLoading ? (
+                  <div className={styles.skeletonPara} style={{ width: "80%", height: "14px" }} />
+                ) : c.finalDecision ? (
                   c.finalDecision
                 ) : (
                   <>
@@ -210,23 +226,35 @@ function CasePreview({
               <div>
                 <span className={styles.boxLabel}>Issues Considered</span>
                 <div className={styles.holdingsList}>
-                  {c.issues.map((issue, i) => (
-                    <div key={i} className={styles.holdingItem}>
-                      <span className={styles.holdingNum}>{i + 1}</span>
-                      <p className={styles.holdingText}>{issue}</p>
+                  {summaryLoading ? (
+                    <div className={styles.holdingItem} style={{ border: "none", padding: 0 }}>
+                      <div className={styles.skeletonPara} style={{ width: "90%", height: "14px", margin: "4px 0" }} />
                     </div>
-                  ))}
+                  ) : (
+                    c.issues.map((issue, i) => (
+                      <div key={i} className={styles.holdingItem}>
+                        <span className={styles.holdingNum}>{i + 1}</span>
+                        <p className={styles.holdingText}>{issue}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               <div>
                 <span className={styles.boxLabel}>Key Holdings</span>
                 <div className={styles.holdingsList}>
-                  {c.holdings.map((h) => (
-                    <div key={h.n} className={styles.holdingItem}>
-                      <span className={styles.holdingNum}>{h.n}</span>
-                      <p className={styles.holdingText}>{h.text}</p>
+                  {summaryLoading ? (
+                    <div className={styles.holdingItem} style={{ border: "none", padding: 0 }}>
+                      <div className={styles.skeletonPara} style={{ width: "85%", height: "14px", margin: "4px 0" }} />
                     </div>
-                  ))}
+                  ) : (
+                    c.holdings.map((h) => (
+                      <div key={h.n} className={styles.holdingItem}>
+                        <span className={styles.holdingNum}>{h.n}</span>
+                        <p className={styles.holdingText}>{h.text}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -263,7 +291,11 @@ function CasePreview({
                 </span>
                 Significance
               </div>
-              <p className={styles.significanceText}>"{c.significance}"</p>
+              {summaryLoading ? (
+                <div className={styles.skeletonPara} style={{ width: "70%", height: "14px", margin: "8px 0" }} />
+              ) : (
+                <p className={styles.significanceText}>"{c.significance}"</p>
+              )}
               <span className={styles.keyPrecedentTag}>Key Precedent</span>
             </div>
           </div>

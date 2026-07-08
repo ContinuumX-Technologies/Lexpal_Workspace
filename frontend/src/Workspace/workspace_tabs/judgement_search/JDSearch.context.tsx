@@ -66,6 +66,7 @@ interface JDSearchContextValue {
   hasMore: boolean;
   selectedCase: CaseResult | null;
   previewLoading: boolean;
+  summaryLoading: boolean;
   pinnedCases: PinnedCase[];
   searchSource: SearchSource;
   setSearchSource: (val: SearchSource) => void;
@@ -217,6 +218,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
   const [seenIds, setSeenIds] = useState<string[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [pinnedCases, setPinnedCases] = useState<PinnedCase[]>([]);
   const [searchSource, setSearchSource] = useState<SearchSource>("public");
   const { caseId } = useParams<{ caseId: string }>();
@@ -232,15 +234,54 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
   const [sectionNo, setSectionNo] = useState<string>("");
 
   useEffect(() => {
+    let pollInterval: any;
     if (caseId) {
       setAppState("results");
       setPreviewLoading(true);
       const item = location.state?.item;
-      fetchCaseDetail(caseId, item)
-        .then((detail) => setSelectedCase(detail))
-        .catch((err) => console.error("Failed to load case directly by ID", err))
-        .finally(() => setPreviewLoading(false));
+
+      const loadCase = async () => {
+        try {
+          const detail = await fetchCaseDetail(caseId, item);
+          setSelectedCase(detail);
+          setPreviewLoading(false);
+
+          // If summary is missing (e.g. returns "No summary available."), start polling
+          if (detail.summary === "No summary available." || !detail.summary) {
+            setSummaryLoading(true);
+            
+            if (pollInterval) clearInterval(pollInterval);
+            
+            pollInterval = setInterval(async () => {
+              try {
+                const updatedDetail = await fetchCaseDetail(caseId, item);
+                if (updatedDetail.summary && updatedDetail.summary !== "No summary available.") {
+                  setSelectedCase(updatedDetail);
+                  setSummaryLoading(false);
+                  clearInterval(pollInterval);
+                }
+              } catch (e) {
+                console.error("Polling summary failed", e);
+              }
+            }, 1000); // Poll every 1 second
+          } else {
+            setSummaryLoading(false);
+          }
+        } catch (err) {
+          console.error("Failed to load case directly by ID", err);
+          setPreviewLoading(false);
+        }
+      };
+
+      loadCase();
+    } else {
+      setSelectedCase(null);
+      setSummaryLoading(false);
     }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [caseId, location.state?.item]);
 
   const resetFilters = useCallback(() => {
@@ -366,6 +407,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
         hasMore,
         selectedCase,
         previewLoading,
+        summaryLoading,
         pinnedCases,
         jurisdiction,
         setJurisdiction,

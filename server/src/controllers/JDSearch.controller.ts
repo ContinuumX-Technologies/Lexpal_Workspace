@@ -1,11 +1,12 @@
 // controllers/searchController.ts
 
 import { Request, Response } from "express";
+import { MongoClient, ObjectId } from "mongodb";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import * as zlib from "zlib";
 import { getOrCreateChromaCollection } from "../infra/chroma.client";
-import { getEmbedding, extractSearchFilters, generateShortTitles } from "../services/AI";
+import { getEmbedding, extractSearchFilters, generateShortTitles, generateJudgmentSummary } from "../services/AI";
 import { searchEnrichmentMetadata } from "../search/enrichmentSearch.service";
 import { ENRICHMENT_INDEX, elasticsearchRequest } from "../infra/elasticsearch.client";
 
@@ -573,7 +574,6 @@ export const searchJudgements = async (
                 const isTitleSearch = qStr.includes(" vs ") || qStr.includes(" v. ") || qStr.includes(" v ");
                 
                 if (isTitleSearch) {
-                    const { MongoClient } = await import("mongodb");
                     const url = process.env.MONGO_CONNECTION_URL;
                     if (url) {
                         const client = new MongoClient(url);
@@ -645,6 +645,75 @@ export const searchJudgements = async (
             })
         );
 
+        // Trigger background summary generation for search results missing summaries
+        const mongoUrl = process.env.MONGO_CONNECTION_URL;
+        if (mongoUrl) {
+            (async () => {
+                let client: MongoClient | null = null;
+                try {
+                    client = new MongoClient(mongoUrl);
+                    await client.connect();
+                    const db = client.db("Lexpal_Workspace");
+                    const collection = db.collection("supreme_court_judgements");
+                    
+                    const docIds = selected.map(j => j.id);
+                    const objectIds = docIds.map(id => ObjectId.isValid(id) ? new ObjectId(id) : null).filter(Boolean) as ObjectId[];
+                    const docsWithoutSummary = await collection.find({
+                        $or: [
+                            { _id: { $in: objectIds }, summary: { $exists: false } },
+                            { "source.docId": { $in: docIds }, summary: { $exists: false } }
+                        ]
+                    }, { projection: { _id: 1, texts: 1, htmlContent: 1, date: 1, createdAt: 1 } }).toArray();
+
+                    if (docsWithoutSummary.length > 0) {
+                        await Promise.all(docsWithoutSummary.map(async (doc) => {
+                            console.log(`[BACKGROUND PRE-GEN] Pre-generating summary for doc ID: ${doc._id}`);
+                            try {
+                                let texts = doc.texts;
+                                if (!texts || !Array.isArray(texts) || texts.length === 0) {
+                                    let html = doc.htmlContent;
+                                    if (html) {
+                                        if (Buffer.isBuffer(html)) {
+                                            try { html = zlib.gunzipSync(html).toString("utf8"); } catch {}
+                                        } else if (typeof html === "object" && (html as any).buffer) {
+                                            try { html = zlib.gunzipSync((html as any).buffer).toString("utf8"); } catch {}
+                                        }
+                                        const $ = cheerio.load(html);
+                                        texts = [];
+                                        const container = $(".judgments").length > 0 ? $(".judgments") : $("body");
+                                        container.find("p, div[id^='p_']").each((_, el) => {
+                                            const text = $(el).text().trim();
+                                            if (text) {
+                                                const type = $(el).attr("data-structure") || "text";
+                                                texts.push({ type, content: text });
+                                            }
+                                        });
+                                    }
+                                }
+
+                                if (texts && Array.isArray(texts) && texts.length > 0) {
+                                    const summaryJson = await generateJudgmentSummary(texts, doc.date || doc.createdAt?.toISOString());
+                                    await collection.updateOne(
+                                        { _id: doc._id },
+                                        { $set: { summary: summaryJson } }
+                                    );
+                                    console.log(`[BACKGROUND PRE-GEN SUCCESS] Saved summary for doc ID: ${doc._id}`);
+                                }
+                            } catch (err: any) {
+                                console.error(`[BACKGROUND PRE-GEN ERROR] Failed for doc ID ${doc._id}:`, err.message);
+                            }
+                        }));
+                    }
+                } catch (err) {
+                    console.error("Background pre-generation check failed:", err);
+                } finally {
+                    if (client) {
+                        await client.close();
+                    }
+                }
+            })();
+        }
+
         res.json({
             results: response,
             reframedQuery: finalQuery,
@@ -662,7 +731,6 @@ export const searchJudgements = async (
 
 
 export const getJudgementById = async (req: Request, res: Response): Promise<void> => {
-    const { MongoClient, ObjectId } = await import("mongodb");
     const url = process.env.MONGO_CONNECTION_URL;
     if (!url) {
         res.status(500).json({ error: "DB connection not configured" });
@@ -683,18 +751,91 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
         const db = client.db("Lexpal_Workspace");
         const collection = db.collection("supreme_court_judgements");
         
-        const doc = await collection.findOne(query);
+        let doc = await collection.findOne(query);
         if (!doc) {
             if (!ObjectId.isValid(id)) {
                 console.log(`[ON-DEMAND SCRAPE] Fetching and inserting docId: ${id}`);
                 const scraped = await scrapeAndInsertOnDemand(id, collection);
                 if (scraped) {
-                    res.json(scraped);
-                    return;
+                    doc = scraped;
                 }
             }
+        }
+
+        if (!doc) {
             res.status(404).json({ error: "Judgment not found" });
             return;
+        }
+
+        // Generate summary on-the-fly in background if missing
+        if (!doc.summary) {
+            console.log(`[ON-DEMAND SUMMARY BACKGROUND] Summary missing for docId/ID: ${id || doc._id}. Triggering in background...`);
+            
+            // Asynchronously generate the summary in background without blocking the HTTP response
+            (async () => {
+                let bgClient: MongoClient | null = null;
+                try {
+                    bgClient = new MongoClient(url);
+                    await bgClient.connect();
+                    const bgDb = bgClient.db("Lexpal_Workspace");
+                    const bgCollection = bgDb.collection("supreme_court_judgements");
+
+                    let texts = doc.texts;
+                    if (!texts || !Array.isArray(texts) || texts.length === 0) {
+                        let html = doc.htmlContent;
+                        if (html) {
+                            if (Buffer.isBuffer(html)) {
+                                try {
+                                    html = zlib.gunzipSync(html).toString("utf8");
+                                } catch (err) {
+                                    html = html.toString("utf8");
+                                }
+                            } else if (typeof html === "object" && (html as any).buffer) {
+                                try {
+                                    html = zlib.gunzipSync((html as any).buffer).toString("utf8");
+                                } catch (err) {
+                                    html = html.toString("utf8");
+                                }
+                            }
+                            const $ = cheerio.load(html);
+                            texts = [];
+                            const container = $(".judgments").length > 0 ? $(".judgments") : $("body");
+                            container.find("p, div[id^='p_']").each((_, el) => {
+                                const text = $(el).text().trim();
+                                if (text) {
+                                    const type = $(el).attr("data-structure") || "text";
+                                    texts.push({ type, content: text });
+                                }
+                            });
+                        }
+                    }
+
+                    if (texts && Array.isArray(texts) && texts.length > 0) {
+                        const summaryJson = await generateJudgmentSummary(texts, doc.date || doc.createdAt?.toISOString());
+                        
+                        // If it was stored in DB, update the record
+                        if (doc._id && ObjectId.isValid(doc._id.toString())) {
+                            await bgCollection.updateOne(
+                                { _id: new ObjectId(doc._id.toString()) },
+                                { $set: { summary: summaryJson } }
+                            );
+                            require("fs").appendFileSync("debug.log", `[SUCCESS] Generated and saved summary for ${doc._id}\n`);
+                            console.log(`[ON-DEMAND SUMMARY BACKGROUND SUCCESS] Saved summary for doc ID: ${doc._id}`);
+                        } else {
+                            require("fs").appendFileSync("debug.log", `[WARNING] doc._id is not valid: ${doc._id}\n`);
+                        }
+                    } else {
+                        require("fs").appendFileSync("debug.log", `[WARNING] No texts extracted for ${doc._id}\n`);
+                    }
+                } catch (sumErr: any) {
+                    require("fs").appendFileSync("debug.log", `[ERROR] ${sumErr.message}\n${sumErr.stack}\n`);
+                    console.error(`[ON-DEMAND SUMMARY BACKGROUND ERROR] Failed to generate summary for doc:`, sumErr.message);
+                } finally {
+                    if (bgClient) {
+                        await bgClient.close();
+                    }
+                }
+            })();
         }
 
         // Check if there is an inlined HTML file for this judgment
