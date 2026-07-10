@@ -5,9 +5,11 @@ import JudgementAiChat from "./JudgementAiChat";
 import LoadingLines from "@/components/ui/loading-lines";
 import { useAnalysisStore } from "./store/analysisStore";
 import type { Highlight, Pin } from "./store/analysisStore";
+import { motion, AnimatePresence } from "framer-motion";
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 type TaskType = CaseTask | "full";
+type CitationTab = "judgements" | "laws";
 
 const taskToMongoType: Record<CaseTask, string> = {
   facts: "Fact",
@@ -32,7 +34,7 @@ const applyHighlightsToDoc = (doc: Document, highlights: Highlight[]) => {
     const textNodes: { node: Text, start: number, end: number }[] = [];
 
     const walk = (node: Node) => {
-      if (node.nodeType === 3) { // Text node
+      if (node.nodeType === 3) {
         const textNode = node as Text;
         const len = textNode.nodeValue?.length || 0;
         textNodes.push({
@@ -116,7 +118,6 @@ const getFilteredHtmlContent = (html: string, task: TaskType): string => {
   return doc.documentElement.outerHTML;
 };
 
-
 interface TextBlock {
   type: string;
   content: string;
@@ -136,7 +137,6 @@ interface CaseDoc {
 }
 
 const renderFormattedTitle = (title: string) => {
-  // Try to extract "on <date>" suffix from the title
   const dateMatch = title.match(/\s+on\s+(\d{1,2}\s+\w+,?\s+\d{4})$/i);
   const titleWithoutDate = dateMatch ? title.substring(0, dateMatch.index).trim() : title;
   const dateSuffix = dateMatch ? dateMatch[1] : null;
@@ -179,6 +179,9 @@ const JudgementAnalyser: React.FC = () => {
   const [judgementText, setJudgementText] = useState("");
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string; paraKey?: string; offset?: number } | null>(null);
 
+  // Citation Tab State
+  const [activeCitationTab, setActiveCitationTab] = useState<CitationTab>("judgements");
+
   const { updateCase, cases } = useAnalysisStore();
   const currentCase = cases[caseId || ""] || { highlights: [], pins: [], messages: [] };
   const highlights = currentCase.highlights;
@@ -189,6 +192,48 @@ const JudgementAnalyser: React.FC = () => {
   const mainRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Modal Drag States
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatPosition, setChatPosition] = useState({ x: window.innerWidth - 450, y: 100 });
+  const [isDraggingChat, setIsDraggingChat] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+
+  // Drag logic for Chat Modal
+  const handleChatMouseDown = (e: React.MouseEvent) => {
+    setIsDraggingChat(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: chatPosition.x,
+      initialY: chatPosition.y,
+    };
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingChat || !dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setChatPosition({
+        x: dragRef.current.initialX + dx,
+        y: Math.max(0, dragRef.current.initialY + dy),
+      });
+    };
+    const handleMouseUp = () => setIsDraggingChat(false);
+
+    if (isDraggingChat) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingChat]);
+
   const handleIframeLoad = () => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -196,7 +241,6 @@ const JudgementAnalyser: React.FC = () => {
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
 
-    // 1. Inject temporary highlight animation styles
     if (!doc.getElementById('iframe-highlight-styles')) {
       const style = doc.createElement('style');
       style.id = 'iframe-highlight-styles';
@@ -216,7 +260,6 @@ const JudgementAnalyser: React.FC = () => {
       doc.head.appendChild(style);
     }
 
-    // 2. Setup selection change listener
     const handleIframeSelection = () => {
       const selection = iframe.contentWindow?.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString().trim()) {
@@ -229,11 +272,11 @@ const JudgementAnalyser: React.FC = () => {
       const rect = range.getBoundingClientRect();
       const iframeRect = iframe.getBoundingClientRect();
 
-      const startPara = range.startContainer.nodeType === 1 
-        ? (range.startContainer as HTMLElement).closest('p, blockquote, pre') 
+      const startPara = range.startContainer.nodeType === 1
+        ? (range.startContainer as HTMLElement).closest('p, blockquote, pre')
         : range.startContainer.parentElement?.closest('p, blockquote, pre');
-      const endPara = range.endContainer.nodeType === 1 
-        ? (range.endContainer as HTMLElement).closest('p, blockquote, pre') 
+      const endPara = range.endContainer.nodeType === 1
+        ? (range.endContainer as HTMLElement).closest('p, blockquote, pre')
         : range.endContainer.parentElement?.closest('p, blockquote, pre');
 
       let paraKey: string | undefined;
@@ -260,7 +303,6 @@ const JudgementAnalyser: React.FC = () => {
 
     doc.addEventListener("selectionchange", handleIframeSelection);
 
-    // Clear selection menu if clicking outside selection but inside iframe
     const handleIframeClick = () => {
       const selection = iframe.contentWindow?.getSelection();
       if (!selection || selection.isCollapsed) {
@@ -269,13 +311,11 @@ const JudgementAnalyser: React.FC = () => {
     };
     doc.addEventListener("mousedown", handleIframeClick);
 
-    // 3. Apply initial highlights
     if (highlights && highlights.length > 0) {
       applyHighlightsToDoc(doc, highlights);
     }
   };
 
-  // Dynamically apply highlights to the iframe document when highlights state changes
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -283,7 +323,6 @@ const JudgementAnalyser: React.FC = () => {
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
 
-    // Clear previous marks and re-apply
     clearHighlightsInDoc(doc);
     if (highlights && highlights.length > 0) {
       applyHighlightsToDoc(doc, highlights);
@@ -314,7 +353,6 @@ const JudgementAnalyser: React.FC = () => {
           }
         }
 
-        // Fallback numeric parsing if elements aren't in DOM
         const getNumericParts = (key: string) => {
           const matches = key.match(/\d+/g);
           return matches ? matches.map(Number) : [];
@@ -347,11 +385,11 @@ const JudgementAnalyser: React.FC = () => {
 
     setCurrentHighlightIndices(prev => ({ ...prev, [color]: nextIndex }));
     const target = colorHighlights[nextIndex];
-    
+
     const element = (doc.getElementById(target.paraKey) || doc.querySelector(`[data-para-key="${target.paraKey}"]`)) as HTMLElement | null;
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
+
       const originalOutline = element.style.outline;
       const originalOutlineOffset = element.style.outlineOffset;
       element.style.outline = `2px solid ${color}`;
@@ -373,9 +411,9 @@ const JudgementAnalyser: React.FC = () => {
 
     const selection = win.getSelection();
     if (!selection || selection.rangeCount === 0) return;
-    
+
     const range = selection.getRangeAt(0);
-    
+
     if (isIframeActive) {
       if (selectionMenu?.paraKey && selectionMenu?.offset !== undefined) {
         const newHighlight: Highlight = {
@@ -431,14 +469,14 @@ const JudgementAnalyser: React.FC = () => {
         updateCase(caseId || "", { highlights: [...highlights, ...newHighlights] });
       }
     }
-    
+
     setSelectionMenu(null);
     selection.removeAllRanges();
   };
 
   const removeHighlightByParaKey = (paraKey: string, offset: number) => {
-    updateCase(caseId || "", { 
-      highlights: highlights.filter(h => !(h.paraKey === paraKey && h.offset === offset)) 
+    updateCase(caseId || "", {
+      highlights: highlights.filter(h => !(h.paraKey === paraKey && h.offset === offset))
     });
     setSelectionMenu(null);
   };
@@ -446,7 +484,6 @@ const JudgementAnalyser: React.FC = () => {
   const renderTextWithHighlights = (text: string, paraKey: string) => {
     if (!highlights.length) return text;
 
-    // Only apply highlights targeting this exact paragraph
     const paraHighlights = highlights
       .filter(h => h.paraKey === paraKey)
       .sort((a, b) => a.offset - b.offset);
@@ -475,12 +512,10 @@ const JudgementAnalyser: React.FC = () => {
     return result;
   };
 
-  // Fetch document details when caseId changes
   useEffect(() => {
     if (caseId) {
       fetchCaseDetails(caseId);
     } else {
-      // Default fallback to show Siddharam Satlingappa Mhetre (1108032)
       fetchCaseDetails("69c1370e5b49900fda48a5fb");
     }
   }, [caseId]);
@@ -493,12 +528,12 @@ const JudgementAnalyser: React.FC = () => {
     const foundElement = paraKey
       ? (doc.getElementById(paraKey) as HTMLElement | null || doc.querySelector(`[data-para-key="${paraKey}"]`) as HTMLElement | null)
       : (() => {
-          const selector = iframeDoc ? 'p, blockquote, pre' : '[data-para-key]';
-          for (const el of Array.from(doc.querySelectorAll(selector)) as HTMLElement[]) {
-            if (el.textContent?.includes(fullText)) return el;
-          }
-          return null;
-        })();
+        const selector = iframeDoc ? 'p, blockquote, pre' : '[data-para-key]';
+        for (const el of Array.from(doc.querySelectorAll(selector)) as HTMLElement[]) {
+          if (el.textContent?.includes(fullText)) return el;
+        }
+        return null;
+      })();
 
     if (foundElement) {
       foundElement.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -533,11 +568,11 @@ const JudgementAnalyser: React.FC = () => {
 
       const container = document.querySelector(`.${styles.judgmentSection}`);
       const commonAncestor = range.commonAncestorContainer;
-      
+
       if (container && container.contains(commonAncestor)) {
         const startPara = range.startContainer.nodeType === 1 ? (range.startContainer as HTMLElement).closest('p') : range.startContainer.parentElement?.closest('p');
         const endPara = range.endContainer.nodeType === 1 ? (range.endContainer as HTMLElement).closest('p') : range.endContainer.parentElement?.closest('p');
-        
+
         let paraKey: string | undefined;
         let offset: number | undefined;
 
@@ -627,10 +662,10 @@ const JudgementAnalyser: React.FC = () => {
       } else {
         const targetType = taskToMongoType[activeTask as CaseTask];
         const filtered = caseData.texts.filter(t => t.type === targetType);
-        const content = filtered.length > 0 
-          ? filtered.map(t => t.content).join("\n\n") 
+        const content = filtered.length > 0
+          ? filtered.map(t => t.content).join("\n\n")
           : "";
-        
+
         setJudgementText(content);
       }
     }
@@ -648,8 +683,6 @@ const JudgementAnalyser: React.FC = () => {
     { id: "conclusion", label: "Conclusion" },
   ];
 
-
-
   return (
     <div className={styles.container} ref={mainRef}>
       {/* Header with pins bar */}
@@ -661,15 +694,15 @@ const JudgementAnalyser: React.FC = () => {
           </div>
           <div className={styles.pinsList}>
             {pins.map(pin => (
-              <div 
-                key={pin.id} 
+              <div
+                key={pin.id}
                 className={`${styles.chip} ${styles.chipPinned} ${activeHighlightId === pin.id ? styles.chipActive : ""}`}
                 onClick={() => navigateToPin(pin.id, pin.fullText, pin.paraKey)}
                 style={{ cursor: "pointer" }}
               >
                 <span className={`${styles.materialIcon} ${styles.iconBlue} ${styles.iconFill}`}>push_pin</span>
                 <span className={styles.chipText}>{pin.text}</span>
-                <button 
+                <button
                   className={styles.chipClose}
                   onClick={(e) => { e.stopPropagation(); removePin(pin.id); }}
                 >
@@ -707,7 +740,6 @@ const JudgementAnalyser: React.FC = () => {
                 <LoadingLines />
               </div>
             )}
-
 
             <div style={{ height: '2rem' }} />
 
@@ -766,7 +798,6 @@ const JudgementAnalyser: React.FC = () => {
                     (activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask]))
                       .map((t, idx) => (
                         <React.Fragment key={idx}>
-                          {/* Split by newline OR inline markers like (i), (ii), (a) that follow text */}
                           {t.content
                             .split(/(\n|(?<=\S)\s+(?=\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
                             .map((line, lineIdx) => {
@@ -775,22 +806,18 @@ const JudgementAnalyser: React.FC = () => {
 
                               const paraKey = `${idx}-${lineIdx}`;
 
-                              // Main paragraph starting with "1.", "¶ 1", etc.
                               if (/^(\d+\.|\u00b6\s*\d+)/.test(trimmed)) {
                                 return <p key={lineIdx} data-para-key={paraKey} className={styles.para}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
-                              // List items starting with "(a)", "a.", "(i)", etc.
                               if (/^(\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/i.test(trimmed)) {
                                 return <p key={lineIdx} data-para-key={paraKey} className={styles.listItem}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
-                              // Sub-list items or deeply indented lines
                               if (line.startsWith('    ') || line.startsWith('\t')) {
                                 return <p key={lineIdx} data-para-key={paraKey} className={styles.subListItem}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
-                              // Plain paragraphs
                               return <p key={lineIdx} data-para-key={paraKey} style={{ textIndent: '2rem' }}>{renderTextWithHighlights(line, paraKey)}</p>;
                             })}
                         </React.Fragment>
@@ -810,45 +837,159 @@ const JudgementAnalyser: React.FC = () => {
             )}
           </div>
         </section>
-        
-        {/* Vertical Highlight Navigator in the gutter */}
-        {highlights.length > 0 && (
-          <div className={styles.gutterToolbar}>
-            <div className={styles.gutterHeader} title="Highlight Navigator">
-              <span className={`${styles.materialIcon} ${styles.iconSmall}`}>auto_awesome</span>
-            </div>
-            <div className={styles.gutterContent}>
-              {Object.entries(
-                highlights.reduce((acc, h) => {
-                  if (!acc[h.color]) acc[h.color] = 0;
-                  acc[h.color]++;
-                  return acc;
-                }, {} as Record<string, number>)
-              ).map(([color, count]) => (
-                <div key={color} className={styles.gutterGroup}>
-                  <div className={styles.gutterColorDot} style={{ backgroundColor: color }} />
-                  <span className={styles.gutterCount}>{count}</span>
-                  <div className={styles.gutterArrows}>
-                    <button onClick={() => navigateByColor(color, 'prev')} className={styles.gutterArrow} title="Previous">
-                      <span className={styles.materialIcon}>expand_less</span>
-                    </button>
-                    <button onClick={() => navigateByColor(color, 'next')} className={styles.gutterArrow} title="Next">
-                      <span className={styles.materialIcon}>expand_more</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Chat aside */}
-        <aside className={styles.chatAside}>
-          <div className={styles.chatHeader}>
-            <span className={styles.chatTitle}>LEXPAL AI</span>
+        {/* Vertical Highlight Navigator in the gutter - ALWAYS VISIBLE */}
+        <div className={styles.gutterToolbar}>
+          <div className={styles.gutterHeader} title="Tools">
+            <span className={`${styles.materialIcon} ${styles.iconSmall}`}>auto_awesome</span>
           </div>
-          <JudgementAiChat caseId={caseId || ""} judgementText={judgementText} />
+          <div className={styles.gutterContent}>
+
+            {/* AI Chat Button */}
+            <div className={styles.gutterGroup}>
+              <button
+                ref={buttonRef}
+                onClick={(e) => {
+                  // Capture the button's position
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setButtonRect(rect);
+                  setIsChatOpen(!isChatOpen);
+                }}
+                className={`${styles.gutterArrow} ${isChatOpen ? styles.gutterArrowActive : ''}`}
+                title="AI Chat"
+              >
+                <span className={styles.materialIcon}>forum</span>
+              </button>
+            </div>
+
+            {/* Divider if highlights exist */}
+            {highlights.length > 0 && <div className={styles.gutterDivider} />}
+
+            {/* Highlight Iterators */}
+            {highlights.length > 0 && Object.entries(
+              highlights.reduce((acc, h) => {
+                if (!acc[h.color]) acc[h.color] = 0;
+                acc[h.color]++;
+                return acc;
+              }, {} as Record<string, number>)
+            ).map(([color, count]) => (
+              <div key={color} className={styles.gutterGroup}>
+                <div className={styles.gutterColorDot} style={{ backgroundColor: color }} />
+                <span className={styles.gutterCount}>{count}</span>
+                <div className={styles.gutterArrows}>
+                  <button onClick={() => navigateByColor(color, 'prev')} className={styles.gutterArrow} title="Previous">
+                    <span className={styles.materialIcon}>expand_less</span>
+                  </button>
+                  <button onClick={() => navigateByColor(color, 'next')} className={styles.gutterArrow} title="Next">
+                    <span className={styles.materialIcon}>expand_more</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── NEW: Right Citation Panel ── */}
+        <aside className={styles.citationAside}>
+          <div className={styles.citationHeader}>
+            <button
+              className={`${styles.citationTab} ${activeCitationTab === 'judgements' ? styles.citationTabActive : ''}`}
+              onClick={() => setActiveCitationTab('judgements')}
+            >
+              Judgement Citations
+            </button>
+            <button
+              className={`${styles.citationTab} ${activeCitationTab === 'laws' ? styles.citationTabActive : ''}`}
+              onClick={() => setActiveCitationTab('laws')}
+            >
+              Law Citations
+            </button>
+          </div>
+
+          <div className={styles.citationContent}>
+            {activeCitationTab === 'judgements' ? (
+              <div className={styles.citationList}>
+                {/* Mock Data for Judgement Citations */}
+                <div className={styles.citationCard}>
+                  <span className={styles.citationRef}>1973 AIR 1461</span>
+                  <h4 className={styles.citationName}>Kesavananda Bharati v. State of Kerala</h4>
+                  <p className={styles.citationDesc}>Referred extensively regarding the Basic Structure Doctrine.</p>
+                </div>
+                <div className={styles.citationCard}>
+                  <span className={styles.citationRef}>1978 AIR 597</span>
+                  <h4 className={styles.citationName}>Maneka Gandhi v. Union of India</h4>
+                  <p className={styles.citationDesc}>Cited in para 45 concerning Article 21 and personal liberty.</p>
+                </div>
+                <div className={styles.citationCard}>
+                  <span className={styles.citationRef}>1994 AIR 1918</span>
+                  <h4 className={styles.citationName}>S. R. Bommai v. Union of India</h4>
+                  <p className={styles.citationDesc}>Relied upon for establishing parameters of judicial review.</p>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.citationList}>
+                {/* Mock Data for Law Citations */}
+                <div className={styles.citationCard}>
+                  <span className={styles.citationRef}>Article 21</span>
+                  <h4 className={styles.citationName}>Constitution of India, 1950</h4>
+                  <p className={styles.citationDesc}>Protection of Life and Personal Liberty.</p>
+                </div>
+                <div className={styles.citationCard}>
+                  <span className={styles.citationRef}>Section 302</span>
+                  <h4 className={styles.citationName}>Indian Penal Code, 1860</h4>
+                  <p className={styles.citationDesc}>Punishment for murder.</p>
+                </div>
+                <div className={styles.citationCard}>
+                  <span className={styles.citationRef}>Section 154</span>
+                  <h4 className={styles.citationName}>Code of Criminal Procedure, 1973</h4>
+                  <p className={styles.citationDesc}>Information in cognizable cases (FIR).</p>
+                </div>
+              </div>
+            )}
+          </div>
         </aside>
+
+        <AnimatePresence>
+          {isChatOpen && buttonRect && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0, transformOrigin: "left" }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{
+                type: "spring",
+                damping: 25,
+                stiffness: 300,
+                mass: 0.8
+              }}
+              className={styles.chatModal}
+              style={{
+                left: `${chatPosition.x}px`,
+                top: `${chatPosition.y}px`
+              }}
+            >
+              <div
+                className={styles.chatModalHeader}
+                onMouseDown={handleChatMouseDown}
+              >
+                <div className={styles.chatModalDragHandle}>
+                  <span className={`${styles.materialIcon} ${styles.iconSmall}`}>drag_indicator</span>
+                  <span className={styles.chatTitle}>LEXPAL AI</span>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className={styles.chatModalCloseBtn}
+                >
+                  <span className={styles.materialIcon}>close</span>
+                </button>
+              </div>
+              <div className={styles.chatModalBody}>
+                <JudgementAiChat caseId={caseId || ""} judgementText={judgementText} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* Draggable Chat Modal */}
+
       </main>
 
       {/* Footer */}
@@ -888,31 +1029,31 @@ const JudgementAnalyser: React.FC = () => {
             <span className={`${styles.materialIcon} ${styles.iconSmall}`}>push_pin</span>
             Add to Pins
           </button>
-          
+
           <div className={styles.selectionDivider} />
-          
+
           <div className={styles.colorOptions}>
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#fef08a' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#fef08a' }}
               onClick={() => addHighlight('#fef08a')}
               title="Yellow"
             />
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#bbf7d0' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#bbf7d0' }}
               onClick={() => addHighlight('#bbf7d0')}
               title="Green"
             />
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#bfdbfe' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#bfdbfe' }}
               onClick={() => addHighlight('#bfdbfe')}
               title="Blue"
             />
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#fbcfe8' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#fbcfe8' }}
               onClick={() => addHighlight('#fbcfe8')}
               title="Pink"
             />

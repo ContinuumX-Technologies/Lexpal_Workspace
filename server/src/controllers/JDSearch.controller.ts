@@ -281,6 +281,12 @@ async function searchWithElasticsearch(body: SearchRequestBody, finalQuery: stri
 // -------------------------------
 // Controller
 // -------------------------------
+function cleanCitationString(query: string): string {
+    return query
+        .replace(/[.,]/g, '')    // Remove periods and commas (e.g., A.I.R. -> AIR)
+        .replace(/\s+/g, ' ')    // Collapse multiple spaces into a single space
+        .trim();
+}
 
 export const searchJudgements = async (
     req: Request<{}, {}, SearchRequestBody>,
@@ -588,7 +594,7 @@ export const searchJudgements = async (
 
 
         // -------------------------------
-        // 8. Exact Title Match Boost
+        // 8. Exact Title & Citation Match Boost
         // -------------------------------
         if (query && excludeIds.length === 0) {
             try {
@@ -598,7 +604,7 @@ export const searchJudgements = async (
                     method: "POST",
                     body: {
                         ...fuzzyQueryBody,
-                        size: 5 // Get top 5 matches instead of 1
+                        size: 5 // Get the top 5 fuzzy/citation matches
                     }
                 });
 
@@ -614,6 +620,9 @@ export const searchJudgements = async (
                             combinedJudgments.splice(existingIdx, 1);
                         }
 
+                        // Determine if it was matched primarily due to citation
+                        const isCitation = isCitationQuery(String(query));
+
                         combinedJudgments.push({
                             id: jId,
                             score: 9999 - hitIndex, // Guarantee top placement, preserving ES rank order
@@ -623,13 +632,13 @@ export const searchJudgements = async (
                                 judgement_type: jurisdiction || "Supreme court",
                                 year: exactDoc._source.year || 2024,
                                 search_source: "elasticsearch_fuzzy",
-                                match_reasons: ["Fuzzy Title Match Boost"]
+                                match_reasons: [isCitation ? "Exact Citation Match Boost" : "Fuzzy Title Match Boost"]
                             }
                         });
                     }
                 });
             } catch (err) {
-                console.error("Fuzzy title match boost failed:", err);
+                console.error("Fuzzy title/citation match boost failed:", err);
             }
         }
 
@@ -669,56 +678,116 @@ export const searchJudgements = async (
     }
 };
 
+function isCitationQuery(query: string): boolean {
+    // Matches standard Indian legal journals
+    const journalPattern = /\b(AIR|SCC|SCR|SCALE|JT|LLJ|CRLJ|FLR|PTC|STC|ILR|SCW|RCJ|MANU|LRC)\b/i;
+    // Matches either a 4 digit year or general numbers (page/volume numbers)
+    const hasNumbers = /\d+/.test(query);
+
+    return journalPattern.test(query) && hasNumbers;
+}
+
 function buildFuzzyTitleQuery(rawQuery: string) {
     const normTokens = tokenize(rawQuery);
+
+    // Simulate the "reversed_title" logic at query time (fallback if DB misses it)
+    const vsPattern = /\bversus\b|\bvs\.?\b|\bv\.(?=\s|$)/i;
+    let reversedQuery = "";
+    if (vsPattern.test(rawQuery)) {
+        const parts = rawQuery.split(vsPattern);
+        if (parts.length === 2) {
+            reversedQuery = `${parts[1].trim()} vs ${parts[0].trim()}`;
+        }
+    }
+
+    const shouldClauses: any[] = [
+        // 1. Standard exact/phrase matches for titles
+        { term: { "title.keyword": { value: rawQuery, boost: 50 } } },
+        { match_phrase: { title: { query: rawQuery, boost: 25, slop: 2 } } },
+
+        // 2. Multi-match on standard fields
+        {
+            multi_match: {
+                query: rawQuery,
+                fields: [
+                    "title^12",
+                    "title.autocomplete^8",
+                    "petitioner^6",
+                    "respondent^6",
+                    "normalized_title^8",
+                    "reversed_title^6",
+                    "parties_text^4",
+                    "equivalent_citation^6",
+                    "keywords^4",
+                    "subject_areas^3",
+                ],
+                type: "best_fields",
+                fuzziness: "AUTO",
+                prefix_length: 2,
+            }
+        }
+    ];
+
+    // 3. Reversed Title Match Fallback
+    if (reversedQuery) {
+        shouldClauses.push({
+            match_phrase: {
+                title: { query: reversedQuery, boost: 20, slop: 3 }
+            }
+        });
+        shouldClauses.push({
+            match: {
+                title: { query: reversedQuery, boost: 10, fuzziness: "AUTO" }
+            }
+        });
+    }
+
+    // --------------------------------------------------
+    // 4. NEW: Citation Mastery Boost
+    // --------------------------------------------------
+    if (isCitationQuery(rawQuery)) {
+        const cleanedCitation = cleanCitationString(rawQuery);
+
+        // Push a cleaned phrase match with a slight slop (allows 2 words to shift slightly)
+        shouldClauses.push({
+            match_phrase: {
+                equivalent_citation: {
+                    query: cleanedCitation,
+                    boost: 150,
+                    slop: 2
+                }
+            }
+        });
+
+        // Push a fallback exact-term match. 
+        // This requires ALL terms to be present (operator: "and"), 
+        // but they don't have to be in the exact perfect order.
+        // E.g., "1950 AIR 27 SC" will still match "AIR 1950 SC 27"
+        shouldClauses.push({
+            match: {
+                equivalent_citation: {
+                    query: cleanedCitation,
+                    boost: 100, // Slightly lower boost than the perfect phrase match
+                    operator: "and"
+                }
+            }
+        });
+    }
+
+    // 5. Token fallback
+    if (normTokens.length > 0) {
+        shouldClauses.push({
+            terms: {
+                keywords: normTokens,
+                boost: 1.5,
+            }
+        });
+    }
+
     return {
         query: {
             bool: {
-                should: [
-                    {
-                        term: {
-                            "title.keyword": {
-                                value: rawQuery,
-                                boost: 50,
-                            },
-                        },
-                    },
-                    {
-                        match_phrase: {
-                            title: {
-                                query: rawQuery,
-                                boost: 25,
-                                slop: 2,
-                            },
-                        },
-                    },
-                    {
-                        multi_match: {
-                            query: rawQuery,
-                            fields: [
-                                "title^12",
-                                "title.autocomplete^8",
-                                "petitioner^6",
-                                "respondent^6",
-                                "normalized_title^8",
-                                "reversed_title^6",
-                                "parties_text^4",
-                                "equivalent_citation^6",
-                                "keywords^4",
-                                "subject_areas^3",
-                            ],
-                            type: "best_fields",
-                            fuzziness: "AUTO",
-                            prefix_length: 2,
-                        }
-                    },
-                    ...(normTokens.length > 0 ? [{
-                        terms: {
-                            keywords: normTokens,
-                            boost: 1.5,
-                        }
-                    }] : [])
-                ],
+                should: shouldClauses,
                 minimum_should_match: 1,
             }
         },
