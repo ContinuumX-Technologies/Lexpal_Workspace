@@ -1,4 +1,4 @@
-// controllers/searchController.ts
+// controllers/JDController.ts
 
 import { Request, Response } from "express";
 import { MongoClient, ObjectId } from "mongodb";
@@ -6,9 +6,10 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import * as zlib from "zlib";
 import { getOrCreateChromaCollection } from "../infra/chroma.client";
-import { getEmbedding, extractSearchFilters, generateShortTitles, generateJudgmentSummary } from "../services/AI";
+import { getEmbedding, extractSearchFilters, generateShortTitles } from "../services/AI";
 import { searchEnrichmentMetadata } from "../search/enrichmentSearch.service";
 import { ENRICHMENT_INDEX, elasticsearchRequest } from "../infra/elasticsearch.client";
+import { tokenize, normalizeText } from '../utils/normalizer.util';
 
 const COLLECTION_NAME = "judgements";
 
@@ -82,7 +83,7 @@ interface SearchResponseItem {
     subject_areas?: string[];
     keywords?: string[];
     match_reasons?: string[];
-    search_source?: "elasticsearch" | "chroma" | "mongo";
+    search_source?: "elasticsearch" | "chroma" | "mongo" | "elasticsearch_fuzzy";
 }
 
 interface SearchResponse {
@@ -330,184 +331,204 @@ export const searchJudgements = async (
             finalQuery += ` with ${status} status`;
         }
 
+        const runSearch = async (body: SearchRequestBody) => {
+            const esPromise = searchWithElasticsearch(body, finalQuery).catch((err) => {
+                console.warn("ES Search failed or unavailable, proceeding with Chroma only.");
+                return null;
+            });
+
+            const chromaPromise = (async () => {
+                const queries: string[] = [
+                    query ?? finalQuery,
+                    finalQuery,
+                ];
+
+                const embeddings: number[][] = await Promise.all(
+                    queries.map((q) => getEmbedding(q))
+                );
+
+                // -------------------------------
+                // 2. Dynamic chunk fetch size
+                // -------------------------------
+                const BASE_FETCH = 120;
+                const CHUNK_FETCH_LIMIT = BASE_FETCH; // Fixed size because Chroma filters natively
+
+                const chromaCollection = await getOrCreateChromaCollection(COLLECTION_NAME);
+
+                let whereClause: any = undefined;
+                const andFilters: any[] = [];
+
+                if (excludeIds.length > 0) {
+                    andFilters.push({ judgement_db_id: { $nin: excludeIds } });
+                }
+                if (body.jurisdiction) {
+                    andFilters.push({ judgement_type: body.jurisdiction });
+                }
+                if (body.year) {
+                    andFilters.push({ year: body.year });
+                }
+                if (body.yearFrom) {
+                    andFilters.push({ year: { $gte: body.yearFrom } });
+                }
+                if (body.yearTo) {
+                    andFilters.push({ year: { $lte: body.yearTo } });
+                }
+
+                if (andFilters.length > 0) {
+                    whereClause = andFilters.length === 1 ? andFilters[0] : { $and: andFilters };
+                }
+
+                const raw = await chromaCollection.query({
+                    queryEmbeddings: embeddings,
+                    nResults: CHUNK_FETCH_LIMIT,
+                    where: whereClause
+                });
+
+                // -------------------------------
+                // Normalize Chroma response safely
+                // -------------------------------
+                const ids = raw.ids ?? [];
+                const documents = raw.documents ?? [];
+                const metadatas = raw.metadatas ?? [];
+                const distances = raw.distances ?? [];
+
+                // -------------------------------
+                // 3. Flatten results
+                // -------------------------------
+                const chunks: RetrievedChunk[] = [];
+
+                for (let i = 0; i < ids.length; i++) {
+                    const idArr = ids[i] ?? [];
+                    const docArr = documents[i] ?? [];
+                    const metaArr = metadatas[i] ?? [];
+                    const distArr = distances[i] ?? [];
+
+                    for (let j = 0; j < idArr.length; j++) {
+                        const id = idArr[j];
+                        const text = docArr[j];
+                        const metadata = metaArr[j];
+                        const distance = distArr[j];
+
+                        if (
+                            !id ||
+                            !text ||
+                            !metadata ||
+                            typeof distance !== "number" ||
+                            !isChunkMetadata(metadata)
+                        ) {
+                            continue;
+                        }
+
+                        chunks.push({
+                            id,
+                            text,
+                            metadata: metadata as ChunkMetadata,
+                            distance,
+                        });
+                    }
+                }
+
+                // -------------------------------
+                // 4. Score chunks
+                // -------------------------------
+                const processedChunks: ProcessedChunk[] = chunks.map((c) => {
+                    const similarity = 1 - c.distance;
+
+                    const sectionWeight = getSectionWeight(
+                        c.metadata.section_type
+                    );
+                    const courtWeight = getCourtWeight(
+                        c.metadata.judgement_type
+                    );
+
+                    const weightedScore =
+                        similarity *
+                        WEIGHTS.similarity *
+                        sectionWeight *
+                        courtWeight;
+
+                    return {
+                        ...c,
+                        weightedScore,
+                    };
+                });
+
+                // -------------------------------
+                // 5. Group by judgment_id
+                // -------------------------------
+                const judgmentMap = new Map<string, ProcessedChunk[]>();
+
+                for (const chunk of processedChunks) {
+                    const jId = chunk.metadata.judgement_db_id;
+
+                    if (excludeIds.includes(jId)) continue;
+
+                    if (!judgmentMap.has(jId)) {
+                        judgmentMap.set(jId, []);
+                    }
+
+                    judgmentMap.get(jId)!.push(chunk);
+                }
+
+                // -------------------------------
+                // 6. Score judgments
+                // -------------------------------
+                const scoredJudgments: ScoredJudgment[] = [];
+
+                for (const [jId, chunkList] of judgmentMap.entries()) {
+                    chunkList.sort((a, b) => b.weightedScore - a.weightedScore);
+
+                    const topChunks = chunkList.slice(0, 3);
+
+                    const score = topChunks.reduce(
+                        (sum, c) => sum + c.weightedScore,
+                        0
+                    );
+
+                    scoredJudgments.push({
+                        judgmentId: jId,
+                        score,
+                        metadata: topChunks[0].metadata,
+                    });
+                }
+
+                const chromaIds = scoredJudgments.map((sj) => sj.judgmentId);
+                const validIds = await validateCandidatesWithElasticsearch(chromaIds, body);
+                const filteredScoredJudgments = scoredJudgments.filter((sj) => validIds.includes(sj.judgmentId));
+
+                return filteredScoredJudgments;
+            })();
+
+            const [esRes, scoredJudgments] = await Promise.all([esPromise, chromaPromise]);
+            return { esRes, scoredJudgments };
+        };
+
         // -------------------------------
         // 2. Fetch Candidates Concurrently
         // -------------------------------
-        const esPromise = searchWithElasticsearch(req.body, finalQuery).catch((err) => {
-            console.warn("ES Search failed or unavailable, proceeding with Chroma only.");
-            return null;
-        });
+        const primaryBody: SearchRequestBody = { ...req.body };
+        const { esRes, scoredJudgments } = await runSearch(primaryBody);
 
-        const chromaPromise = (async () => {
-            const queries: string[] = [
-                query ?? finalQuery,
-                finalQuery,
-            ];
+        const hasYearConstraint = Boolean(primaryBody.year || primaryBody.yearFrom || primaryBody.yearTo);
+        const noResults = !esRes && scoredJudgments.length === 0;
 
-            const embeddings: number[][] = await Promise.all(
-                queries.map((q) => getEmbedding(q))
-            );
+        const searchOutcome = (hasYearConstraint && noResults)
+            ? await runSearch({
+                ...primaryBody,
+                year: undefined,
+                yearFrom: undefined,
+                yearTo: undefined,
+            })
+            : { esRes, scoredJudgments };
 
-        // -------------------------------
-        // 2. Dynamic chunk fetch size
-        // -------------------------------
-        const BASE_FETCH = 120;
-        const CHUNK_FETCH_LIMIT = BASE_FETCH; // Fixed size because Chroma filters natively
-
-        const chromaCollection = await getOrCreateChromaCollection(COLLECTION_NAME);
-
-        let whereClause: any = undefined;
-        const andFilters: any[] = [];
-
-        if (excludeIds.length > 0) {
-            andFilters.push({ judgement_db_id: { $nin: excludeIds } });
-        }
-        if (req.body.jurisdiction) {
-            // Mapping frontend "Supreme Court" to backend "Supreme court" if needed
-            andFilters.push({ judgement_type: req.body.jurisdiction });
-        }
-        if (req.body.year) {
-            andFilters.push({ year: req.body.year });
-        }
-        if (req.body.yearFrom) {
-            andFilters.push({ year: { $gte: req.body.yearFrom } });
-        }
-        if (req.body.yearTo) {
-            andFilters.push({ year: { $lte: req.body.yearTo } });
-        }
-
-        if (andFilters.length > 0) {
-            whereClause = andFilters.length === 1 ? andFilters[0] : { $and: andFilters };
-        }
-
-        const raw = await chromaCollection.query({
-            queryEmbeddings: embeddings,
-            nResults: CHUNK_FETCH_LIMIT,
-            where: whereClause
-        });
-
-        // -------------------------------
-        // Normalize Chroma response safely
-        // -------------------------------
-        const ids = raw.ids ?? [];
-        const documents = raw.documents ?? [];
-        const metadatas = raw.metadatas ?? [];
-        const distances = raw.distances ?? [];
-
-        // -------------------------------
-        // 3. Flatten results
-        // -------------------------------
-        const chunks: RetrievedChunk[] = [];
-
-        for (let i = 0; i < ids.length; i++) {
-            const idArr = ids[i] ?? [];
-            const docArr = documents[i] ?? [];
-            const metaArr = metadatas[i] ?? [];
-            const distArr = distances[i] ?? [];
-
-            for (let j = 0; j < idArr.length; j++) {
-                const id = idArr[j];
-                const text = docArr[j];
-                const metadata = metaArr[j];
-                const distance = distArr[j];
-
-                if (
-                    !id ||
-                    !text ||
-                    !metadata ||
-                    typeof distance !== "number" ||
-                    !isChunkMetadata(metadata)
-                ) {
-                    continue;
-                }
-
-                chunks.push({
-                    id,
-                    text,
-                    metadata: metadata as ChunkMetadata,
-                    distance,
-                });
-            }
-        }
-
-        // -------------------------------
-        // 4. Score chunks
-        // -------------------------------
-        const processedChunks: ProcessedChunk[] = chunks.map((c) => {
-            const similarity = 1 - c.distance;
-
-            const sectionWeight = getSectionWeight(
-                c.metadata.section_type
-            );
-            const courtWeight = getCourtWeight(
-                c.metadata.judgement_type
-            );
-
-            const weightedScore =
-                similarity *
-                WEIGHTS.similarity *
-                sectionWeight *
-                courtWeight;
-
-            return {
-                ...c,
-                weightedScore,
-            };
-        });
-
-        // -------------------------------
-        // 5. Group by judgment_id
-        // -------------------------------
-        const judgmentMap = new Map<string, ProcessedChunk[]>();
-
-        for (const chunk of processedChunks) {
-            const jId = chunk.metadata.judgement_db_id;
-
-            if (excludeIds.includes(jId)) continue;
-
-            if (!judgmentMap.has(jId)) {
-                judgmentMap.set(jId, []);
-            }
-
-            judgmentMap.get(jId)!.push(chunk);
-        }
-
-        // -------------------------------
-        // 6. Score judgments
-        // -------------------------------
-        const scoredJudgments: ScoredJudgment[] = [];
-
-        for (const [jId, chunkList] of judgmentMap.entries()) {
-            chunkList.sort((a, b) => b.weightedScore - a.weightedScore);
-
-            const topChunks = chunkList.slice(0, 3);
-
-            const score = topChunks.reduce(
-                (sum, c) => sum + c.weightedScore,
-                0
-            );
-
-            scoredJudgments.push({
-                judgmentId: jId,
-                score,
-                metadata: topChunks[0].metadata,
-            });
-        }
-
-        const chromaIds = scoredJudgments.map((sj) => sj.judgmentId);
-        const validIds = await validateCandidatesWithElasticsearch(chromaIds, req.body);
-        const filteredScoredJudgments = scoredJudgments.filter((sj) => validIds.includes(sj.judgmentId));
-
-        return filteredScoredJudgments;
-        })();
-
-        const [esRes, scoredJudgments] = await Promise.all([esPromise, chromaPromise]);
+        const finalEsRes = searchOutcome.esRes;
+        const finalScoredJudgments = searchOutcome.scoredJudgments;
 
         let elasticsearchResults: SearchResponseItem[] = [];
         let hasMoreEs = false;
-        if (esRes) {
-            elasticsearchResults = esRes.results;
-            hasMoreEs = esRes.hasMore;
+        if (finalEsRes) {
+            elasticsearchResults = finalEsRes.results;
+            hasMoreEs = finalEsRes.hasMore;
         }
 
         // -------------------------------
@@ -530,12 +551,12 @@ export const searchJudgements = async (
         });
 
         // Add Chroma results
-        scoredJudgments.sort((a, b) => b.score - a.score);
-        scoredJudgments.forEach((chromaHit, idx) => {
+        finalScoredJudgments.sort((a, b) => b.score - a.score);
+        finalScoredJudgments.forEach((chromaHit, idx) => {
             const rank = idx + 1;
             const rrfScore = 1 / (RRF_K + rank);
             const existing = hybridMap.get(chromaHit.judgmentId);
-            
+
             if (existing) {
                 existing.score += rrfScore;
                 existing.metadata.search_source = "chroma"; // or 'hybrid'
@@ -565,58 +586,50 @@ export const searchJudgements = async (
             combinedJudgments.push({ id, score: data.score, metadata: data.metadata });
         }
 
+
         // -------------------------------
         // 8. Exact Title Match Boost
         // -------------------------------
         if (query && excludeIds.length === 0) {
             try {
-                const qStr = String(query).toLowerCase();
-                const isTitleSearch = qStr.includes(" vs ") || qStr.includes(" v. ") || qStr.includes(" v ");
-                
-                if (isTitleSearch) {
-                    const url = process.env.MONGO_CONNECTION_URL;
-                    if (url) {
-                        const client = new MongoClient(url);
-                        await client.connect();
-                        const db = client.db("Lexpal_Workspace");
-                        const collection = db.collection("supreme_court_judgements");
-                        
-                        const mongoQuery: any = { $text: { $search: String(query) } };
-                        if (year) mongoQuery.year = year;
-                        if (jurisdiction) mongoQuery.judgement_type = jurisdiction;
+                const fuzzyQueryBody = buildFuzzyTitleQuery(String(query));
 
-                        const exactDocs = await collection.find(
-                            mongoQuery,
-                            { projection: { score: { $meta: "textScore" }, title: 1, year: 1 } }
-                        ).sort({ score: { $meta: "textScore" } }).limit(1).toArray();
-                        
-                        if (exactDocs.length > 0) {
-                            const exactDoc = exactDocs[0] as any;
-                            if (exactDoc.score > 1.0) {
-                                const jId = exactDoc._id.toString();
-                                const existingIdx = combinedJudgments.findIndex(j => j.id === jId);
-                                if (existingIdx !== -1) {
-                                    combinedJudgments.splice(existingIdx, 1);
-                                }
-                                combinedJudgments.push({
-                                    id: jId,
-                                    score: 9999, // Guarantee top placement
-                                    metadata: {
-                                        judgement_db_id: jId,
-                                        short_hand_title: toShortTitle(exactDoc.title),
-                                        judgement_type: jurisdiction || "Supreme court",
-                                        year: exactDoc.year || 2024,
-                                        search_source: "mongo",
-                                        match_reasons: ["Exact title match"]
-                                    }
-                                });
-                            }
-                        }
-                        await client.close();
+                const esResponse = await elasticsearchRequest<any>(`/${ENRICHMENT_INDEX}/_search`, {
+                    method: "POST",
+                    body: {
+                        ...fuzzyQueryBody,
+                        size: 5 // Get top 5 matches instead of 1
                     }
-                }
+                });
+
+                const hits = esResponse.hits?.hits || [];
+
+                // Loop through the top hits and push them to the top of the combined results
+                hits.forEach((exactDoc: any, hitIndex: number) => {
+                    const jId = exactDoc._source.source_docId || exactDoc._source.meta?.judgement_db_id || exactDoc._id;
+
+                    if (jId) {
+                        const existingIdx = combinedJudgments.findIndex(j => j.id === jId);
+                        if (existingIdx !== -1) {
+                            combinedJudgments.splice(existingIdx, 1);
+                        }
+
+                        combinedJudgments.push({
+                            id: jId,
+                            score: 9999 - hitIndex, // Guarantee top placement, preserving ES rank order
+                            metadata: {
+                                judgement_db_id: jId,
+                                short_hand_title: toShortTitle(exactDoc._source.title),
+                                judgement_type: jurisdiction || "Supreme court",
+                                year: exactDoc._source.year || 2024,
+                                search_source: "elasticsearch_fuzzy",
+                                match_reasons: ["Fuzzy Title Match Boost"]
+                            }
+                        });
+                    }
+                });
             } catch (err) {
-                console.error("Exact match boost failed:", err);
+                console.error("Fuzzy title match boost failed:", err);
             }
         }
 
@@ -645,75 +658,6 @@ export const searchJudgements = async (
             })
         );
 
-        // Trigger background summary generation for search results missing summaries
-        const mongoUrl = process.env.MONGO_CONNECTION_URL;
-        if (mongoUrl) {
-            (async () => {
-                let client: MongoClient | null = null;
-                try {
-                    client = new MongoClient(mongoUrl);
-                    await client.connect();
-                    const db = client.db("Lexpal_Workspace");
-                    const collection = db.collection("supreme_court_judgements");
-                    
-                    const docIds = selected.map(j => j.id);
-                    const objectIds = docIds.map(id => ObjectId.isValid(id) ? new ObjectId(id) : null).filter(Boolean) as ObjectId[];
-                    const docsWithoutSummary = await collection.find({
-                        $or: [
-                            { _id: { $in: objectIds }, summary: { $exists: false } },
-                            { "source.docId": { $in: docIds }, summary: { $exists: false } }
-                        ]
-                    }, { projection: { _id: 1, texts: 1, htmlContent: 1, date: 1, createdAt: 1 } }).toArray();
-
-                    if (docsWithoutSummary.length > 0) {
-                        await Promise.all(docsWithoutSummary.map(async (doc) => {
-                            console.log(`[BACKGROUND PRE-GEN] Pre-generating summary for doc ID: ${doc._id}`);
-                            try {
-                                let texts = doc.texts;
-                                if (!texts || !Array.isArray(texts) || texts.length === 0) {
-                                    let html = doc.htmlContent;
-                                    if (html) {
-                                        if (Buffer.isBuffer(html)) {
-                                            try { html = zlib.gunzipSync(html).toString("utf8"); } catch {}
-                                        } else if (typeof html === "object" && (html as any).buffer) {
-                                            try { html = zlib.gunzipSync((html as any).buffer).toString("utf8"); } catch {}
-                                        }
-                                        const $ = cheerio.load(html);
-                                        texts = [];
-                                        const container = $(".judgments").length > 0 ? $(".judgments") : $("body");
-                                        container.find("p, div[id^='p_']").each((_, el) => {
-                                            const text = $(el).text().trim();
-                                            if (text) {
-                                                const type = $(el).attr("data-structure") || "text";
-                                                texts.push({ type, content: text });
-                                            }
-                                        });
-                                    }
-                                }
-
-                                if (texts && Array.isArray(texts) && texts.length > 0) {
-                                    const summaryJson = await generateJudgmentSummary(texts, doc.date || doc.createdAt?.toISOString());
-                                    await collection.updateOne(
-                                        { _id: doc._id },
-                                        { $set: { summary: summaryJson } }
-                                    );
-                                    console.log(`[BACKGROUND PRE-GEN SUCCESS] Saved summary for doc ID: ${doc._id}`);
-                                }
-                            } catch (err: any) {
-                                console.error(`[BACKGROUND PRE-GEN ERROR] Failed for doc ID ${doc._id}:`, err.message);
-                            }
-                        }));
-                    }
-                } catch (err) {
-                    console.error("Background pre-generation check failed:", err);
-                } finally {
-                    if (client) {
-                        await client.close();
-                    }
-                }
-            })();
-        }
-
         res.json({
             results: response,
             reframedQuery: finalQuery,
@@ -725,10 +669,62 @@ export const searchJudgements = async (
     }
 };
 
-
-
-
-
+function buildFuzzyTitleQuery(rawQuery: string) {
+    const normTokens = tokenize(rawQuery);
+    return {
+        query: {
+            bool: {
+                should: [
+                    {
+                        term: {
+                            "title.keyword": {
+                                value: rawQuery,
+                                boost: 50,
+                            },
+                        },
+                    },
+                    {
+                        match_phrase: {
+                            title: {
+                                query: rawQuery,
+                                boost: 25,
+                                slop: 2,
+                            },
+                        },
+                    },
+                    {
+                        multi_match: {
+                            query: rawQuery,
+                            fields: [
+                                "title^12",
+                                "title.autocomplete^8",
+                                "petitioner^6",
+                                "respondent^6",
+                                "normalized_title^8",
+                                "reversed_title^6",
+                                "parties_text^4",
+                                "equivalent_citation^6",
+                                "keywords^4",
+                                "subject_areas^3",
+                            ],
+                            type: "best_fields",
+                            fuzziness: "AUTO",
+                            prefix_length: 2,
+                        }
+                    },
+                    ...(normTokens.length > 0 ? [{
+                        terms: {
+                            keywords: normTokens,
+                            boost: 1.5,
+                        }
+                    }] : [])
+                ],
+                minimum_should_match: 1,
+            }
+        },
+        _source: ["source_docId", "title", "year", "bench", "keywords", "equivalent_citation", "subject_areas", "meta"]
+    };
+}
 
 export const getJudgementById = async (req: Request, res: Response): Promise<void> => {
     const url = process.env.MONGO_CONNECTION_URL;
@@ -736,7 +732,7 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
         res.status(500).json({ error: "DB connection not configured" });
         return;
     }
-    
+
     const client = new MongoClient(url);
     try {
         const id = req.params.id;
@@ -750,7 +746,7 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
         await client.connect();
         const db = client.db("Lexpal_Workspace");
         const collection = db.collection("supreme_court_judgements");
-        
+
         let doc = await collection.findOne(query);
         if (!doc) {
             if (!ObjectId.isValid(id)) {
@@ -765,77 +761,6 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
         if (!doc) {
             res.status(404).json({ error: "Judgment not found" });
             return;
-        }
-
-        // Generate summary on-the-fly in background if missing
-        if (!doc.summary) {
-            console.log(`[ON-DEMAND SUMMARY BACKGROUND] Summary missing for docId/ID: ${id || doc._id}. Triggering in background...`);
-            
-            // Asynchronously generate the summary in background without blocking the HTTP response
-            (async () => {
-                let bgClient: MongoClient | null = null;
-                try {
-                    bgClient = new MongoClient(url);
-                    await bgClient.connect();
-                    const bgDb = bgClient.db("Lexpal_Workspace");
-                    const bgCollection = bgDb.collection("supreme_court_judgements");
-
-                    let texts = doc.texts;
-                    if (!texts || !Array.isArray(texts) || texts.length === 0) {
-                        let html = doc.htmlContent;
-                        if (html) {
-                            if (Buffer.isBuffer(html)) {
-                                try {
-                                    html = zlib.gunzipSync(html).toString("utf8");
-                                } catch (err) {
-                                    html = html.toString("utf8");
-                                }
-                            } else if (typeof html === "object" && (html as any).buffer) {
-                                try {
-                                    html = zlib.gunzipSync((html as any).buffer).toString("utf8");
-                                } catch (err) {
-                                    html = html.toString("utf8");
-                                }
-                            }
-                            const $ = cheerio.load(html);
-                            texts = [];
-                            const container = $(".judgments").length > 0 ? $(".judgments") : $("body");
-                            container.find("p, div[id^='p_']").each((_, el) => {
-                                const text = $(el).text().trim();
-                                if (text) {
-                                    const type = $(el).attr("data-structure") || "text";
-                                    texts.push({ type, content: text });
-                                }
-                            });
-                        }
-                    }
-
-                    if (texts && Array.isArray(texts) && texts.length > 0) {
-                        const summaryJson = await generateJudgmentSummary(texts, doc.date || doc.createdAt?.toISOString());
-                        
-                        // If it was stored in DB, update the record
-                        if (doc._id && ObjectId.isValid(doc._id.toString())) {
-                            await bgCollection.updateOne(
-                                { _id: new ObjectId(doc._id.toString()) },
-                                { $set: { summary: summaryJson } }
-                            );
-                            require("fs").appendFileSync("debug.log", `[SUCCESS] Generated and saved summary for ${doc._id}\n`);
-                            console.log(`[ON-DEMAND SUMMARY BACKGROUND SUCCESS] Saved summary for doc ID: ${doc._id}`);
-                        } else {
-                            require("fs").appendFileSync("debug.log", `[WARNING] doc._id is not valid: ${doc._id}\n`);
-                        }
-                    } else {
-                        require("fs").appendFileSync("debug.log", `[WARNING] No texts extracted for ${doc._id}\n`);
-                    }
-                } catch (sumErr: any) {
-                    require("fs").appendFileSync("debug.log", `[ERROR] ${sumErr.message}\n${sumErr.stack}\n`);
-                    console.error(`[ON-DEMAND SUMMARY BACKGROUND ERROR] Failed to generate summary for doc:`, sumErr.message);
-                } finally {
-                    if (bgClient) {
-                        await bgClient.close();
-                    }
-                }
-            })();
         }
 
         // Check if there is an inlined HTML file for this judgment

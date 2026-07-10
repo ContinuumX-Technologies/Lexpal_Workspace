@@ -1,3 +1,5 @@
+// server/src/search/enrichmentIndex.service.ts
+
 import {
   ENRICHMENT_INDEX,
   elasticsearchNdjsonRequest,
@@ -8,6 +10,11 @@ import {
 export interface EnrichmentDocument {
   source_docId: string;
   title: string;
+  normalized_title?: string;
+  petitioner?: string;
+  respondent?: string;
+  reversed_title?: string;
+  parties_text?: string;
   year: number | null;
   bench: string[];
   keywords: string[];
@@ -34,6 +41,11 @@ export function normalizeEnrichmentDocument(doc: any): IndexedEnrichmentDocument
     esId: String(doc._id),
     source_docId: String(doc.source_docId || ""),
     title: String(doc.title || ""),
+    normalized_title: doc.normalized_title ? String(doc.normalized_title) : undefined,
+    petitioner: doc.petitioner ? String(doc.petitioner) : undefined,
+    respondent: doc.respondent ? String(doc.respondent) : undefined,
+    reversed_title: doc.reversed_title ? String(doc.reversed_title) : undefined,
+    parties_text: doc.parties_text ? String(doc.parties_text) : undefined,
     year: typeof doc.year === "number" ? doc.year : null,
     bench: Array.isArray(doc.bench) ? doc.bench.map(String) : [],
     keywords: Array.isArray(doc.keywords) ? doc.keywords.map(String) : [],
@@ -127,6 +139,36 @@ export async function createEnrichmentIndex(indexName = ENRICHMENT_INDEX) {
                 search_analyzer: "legal_autocomplete_search",
               },
             },
+          },
+          normalized_title: {
+            type: "text",
+            analyzer: "legal_text",
+            search_analyzer: "legal_text",
+            similarity: "legal_bm25",
+          },
+          petitioner: {
+            type: "text",
+            analyzer: "legal_text",
+            search_analyzer: "legal_text",
+            similarity: "legal_bm25",
+          },
+          respondent: {
+            type: "text",
+            analyzer: "legal_text",
+            search_analyzer: "legal_text",
+            similarity: "legal_bm25",
+          },
+          reversed_title: {
+            type: "text",
+            analyzer: "legal_text",
+            search_analyzer: "legal_text",
+            similarity: "legal_bm25",
+          },
+          parties_text: {
+            type: "text",
+            analyzer: "legal_text",
+            search_analyzer: "legal_text",
+            similarity: "legal_bm25",
           },
           year: { type: "integer" },
           bench: {
