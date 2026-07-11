@@ -863,10 +863,24 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
             }
         }
 
+        // Fetch cited_judgements and cited_laws from supreme_court_enrichement
+        let enrichment: any = null;
+        if (docId) {
+            try {
+                const enrichmentCollection = db.collection("supreme_court_enrichement");
+                enrichment = await enrichmentCollection.findOne({ source_docId: String(docId) });
+            } catch (enrichErr) {
+                console.error("Failed to fetch enrichment details:", enrichErr);
+            }
+        }
+
         res.json({
             ...doc,
             htmlContent,
-            htmlSource: htmlSource || (htmlContent ? "mongodb" : "fallback_text")
+            htmlSource: htmlSource || (htmlContent ? "mongodb" : "fallback_text"),
+            cited_judgements: enrichment?.cited_judgements || [],
+            cited_laws: enrichment?.cited_laws || [],
+            cited_by: enrichment?.cited_by || []
         });
     } catch (err) {
         console.error(err);

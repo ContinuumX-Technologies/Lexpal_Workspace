@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
@@ -7,9 +7,182 @@ import { useAnalysisStore } from "./store/analysisStore";
 import type { Highlight, Pin } from "./store/analysisStore";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { ReactFlow, Controls, Background, MarkerType } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import dagre from 'dagre';
+
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 type TaskType = CaseTask | "full";
 type CitationTab = "judgements" | "laws";
+
+// ── Layout Logic ──
+const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+
+const getLayoutedElements = (nodes: any[], edges: any[]) => {
+  dagreGraph.setGraph({ rankdir: 'LR', nodesep: 30, ranksep: 120 });
+  nodes.forEach((node) => dagreGraph.setNode(node.id, { width: 220, height: 60 }));
+  edges.forEach((edge) => dagreGraph.setEdge(edge.source, edge.target));
+  dagre.layout(dagreGraph);
+
+  const mainNode = nodes.find(n => n.id === 'main');
+  const mainPos = mainNode ? dagreGraph.node(mainNode.id) : { x: 300, y: 300 };
+
+  const cbNodes = nodes.filter(n => n.id.startsWith('cb_'));
+  const rightNodes = nodes.filter(n => n.id.startsWith('j_') || n.id.startsWith('l_'));
+
+  const maxPerCol = 8;
+  const nodeHeightWithSpacing = 105;
+  const colWidthWithSpacing = 300;
+
+  // Position cbNodes (left of main, in columns going backwards from main)
+  const cbCols = Math.ceil(cbNodes.length / maxPerCol);
+  const cbPositioned = cbNodes.map((node, index) => {
+    const colIndex = Math.floor(index / maxPerCol);
+    const rowIndex = index % maxPerCol;
+    
+    // Total nodes in this specific column
+    const colSize = colIndex === cbCols - 1 
+      ? cbNodes.length - colIndex * maxPerCol 
+      : maxPerCol;
+
+    const x = mainPos.x - 300 - (cbCols - 1 - colIndex) * colWidthWithSpacing;
+    const y = mainPos.y + (rowIndex - (colSize - 1) / 2) * nodeHeightWithSpacing;
+    return { ...node, position: { x, y } };
+  });
+
+  // Position rightNodes (right of main, in columns going forwards from main)
+  const rightCols = Math.ceil(rightNodes.length / maxPerCol);
+  const rightPositioned = rightNodes.map((node, index) => {
+    const colIndex = Math.floor(index / maxPerCol);
+    const rowIndex = index % maxPerCol;
+    
+    const colSize = colIndex === rightCols - 1 
+      ? rightNodes.length - colIndex * maxPerCol 
+      : maxPerCol;
+
+    const x = mainPos.x + 300 + colIndex * colWidthWithSpacing;
+    const y = mainPos.y + (rowIndex - (colSize - 1) / 2) * nodeHeightWithSpacing;
+    return { ...node, position: { x, y } };
+  });
+
+  const positionedNodes = nodes.map(node => {
+    if (node.id === 'main') {
+      return { ...node, position: { x: mainPos.x, y: mainPos.y } };
+    }
+    const cbFound = cbPositioned.find(n => n.id === node.id);
+    if (cbFound) return cbFound;
+
+    const rightFound = rightPositioned.find(n => n.id === node.id);
+    if (rightFound) return rightFound;
+
+    const pos = dagreGraph.node(node.id);
+    return { ...node, position: { x: pos.x, y: pos.y } };
+  });
+
+  return {
+    nodes: positionedNodes,
+    edges,
+  };
+};
+
+const CitationTree: React.FC<{
+  activeTab: CitationTab;
+  caseTitle: string;
+  citedJudgements?: { docId: string; title: string }[];
+  citedLaws?: { docId: string; section_no: string; act_name: string; act_year: number | null; citation_text: string }[];
+  citedBy?: { docId: string; title: string }[];
+}> = ({ activeTab, caseTitle, citedJudgements = [], citedLaws = [], citedBy = [] }) => {
+  const { nodes, edges } = useMemo(() => {
+    const rawNodes: { id: string; label: string; isCitedBy?: boolean }[] = [
+      { id: 'main', label: caseTitle },
+    ];
+
+    if (activeTab === 'judgements') {
+      citedBy.forEach((cb, idx) => {
+        rawNodes.push({ id: `cb_${cb.docId || idx}`, label: cb.title, isCitedBy: true });
+      });
+      citedJudgements.forEach((j, idx) => {
+        rawNodes.push({ id: `j_${j.docId || idx}`, label: j.title });
+      });
+    } else {
+      citedLaws.forEach((l, idx) => {
+        rawNodes.push({ id: `l_${l.docId || idx}`, label: l.citation_text || l.act_name || `Law ${idx + 1}` });
+      });
+    }
+
+    const rawEdges = rawNodes.slice(1).map((n) => {
+      const source = n.isCitedBy ? n.id : 'main';
+      const target = n.isCitedBy ? 'main' : n.id;
+      return {
+        id: `e_${n.id}`,
+        source,
+        target,
+        type: 'bezier',
+        animated: true,
+        style: { stroke: n.isCitedBy ? '#10b981' : '#3b82f6', strokeWidth: 2, opacity: 0.7 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: n.isCitedBy ? '#10b981' : '#3b82f6',
+          width: 12,
+          height: 12
+        }
+      };
+    });
+
+    return getLayoutedElements(
+      rawNodes.map(n => {
+        const isMain = n.id === 'main';
+        const isCitedBy = n.isCitedBy;
+        return {
+          id: n.id,
+          data: { label: n.label },
+          sourcePosition: 'right' as any,
+          targetPosition: 'left' as any,
+          style: {
+            background: isMain
+              ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
+              : isCitedBy
+                ? '#f0fdf4'
+                : '#ffffff',
+            color: isMain ? '#ffffff' : '#0f172a',
+            border: isMain
+              ? 'none'
+              : isCitedBy
+                ? '1px solid #86efac'
+                : '1px solid #cbd5e1',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            width: 220,
+            fontSize: '11px',
+            fontWeight: isMain ? '600' : '500',
+            boxShadow: isMain
+              ? '0 4px 12px rgba(59, 130, 246, 0.25)'
+              : '0 2px 4px rgba(0, 0, 0, 0.05)',
+            textAlign: 'center' as const,
+            wordBreak: 'break-word' as const,
+            whiteSpace: 'normal' as const,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60px',
+            lineHeight: '1.3',
+            fontFamily: 'inherit',
+          }
+        };
+      }),
+      rawEdges
+    );
+  }, [activeTab, caseTitle, citedJudgements, citedLaws, citedBy]);
+
+  return (
+    <div style={{ width: '100%', height: '100%' }}>
+      <ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.2 }}>
+        <Background gap={16} size={1} color="#e2e8f0" />
+        <Controls />
+      </ReactFlow>
+    </div>
+  );
+};
 
 const taskToMongoType: Record<CaseTask, string> = {
   facts: "Fact",
@@ -134,6 +307,9 @@ interface CaseDoc {
   summary?: any;
   htmlContent?: string;
   htmlSource?: string;
+  cited_judgements?: { docId: string; title: string }[];
+  cited_laws?: { docId: string; section_no: string; act_name: string; act_year: number | null; citation_text: string }[];
+  cited_by?: { docId: string; title: string }[];
 }
 
 const renderFormattedTitle = (title: string) => {
@@ -170,6 +346,7 @@ const renderFormattedTitle = (title: string) => {
   return <h1 className={styles.title}>{title}</h1>;
 };
 
+
 const JudgementAnalyser: React.FC = () => {
   const { caseId } = useParams<{ caseId: string }>();
   const navigate = useNavigate();
@@ -178,9 +355,6 @@ const JudgementAnalyser: React.FC = () => {
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
   const [judgementText, setJudgementText] = useState("");
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string; paraKey?: string; offset?: number } | null>(null);
-
-  // Citation Tab State
-  const [activeCitationTab, setActiveCitationTab] = useState<CitationTab>("judgements");
 
   const { updateCase, cases } = useAnalysisStore();
   const currentCase = cases[caseId || ""] || { highlights: [], pins: [], messages: [] };
@@ -201,6 +375,8 @@ const JudgementAnalyser: React.FC = () => {
   const [isDraggingChat, setIsDraggingChat] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
 
+  const [activeCitationTab, setActiveCitationTab] = useState<CitationTab>("judgements");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   // Drag logic for Chat Modal
   const handleChatMouseDown = (e: React.MouseEvent) => {
     setIsDraggingChat(true);
@@ -889,63 +1065,39 @@ const JudgementAnalyser: React.FC = () => {
           </div>
         </div>
 
-        {/* ── NEW: Right Citation Panel ── */}
+        {/* ── Right Citation Panel with Tabs ── */}
         <aside className={styles.citationAside}>
           <div className={styles.citationHeader}>
+            <div style={{ display: 'flex', flex: 1, height: '100%' }}>
+              <button
+                className={`${styles.citationTab} ${activeCitationTab === 'judgements' ? styles.citationTabActive : ''}`}
+                onClick={() => setActiveCitationTab('judgements')}
+              >
+                Judgement Citations
+              </button>
+              <button
+                className={`${styles.citationTab} ${activeCitationTab === 'laws' ? styles.citationTabActive : ''}`}
+                onClick={() => setActiveCitationTab('laws')}
+              >
+                Law Citations
+              </button>
+            </div>
             <button
-              className={`${styles.citationTab} ${activeCitationTab === 'judgements' ? styles.citationTabActive : ''}`}
-              onClick={() => setActiveCitationTab('judgements')}
+              onClick={() => setIsFullscreen(true)}
+              className={styles.fullscreenToggle}
+              title="View Fullscreen"
             >
-              Judgement Citations
-            </button>
-            <button
-              className={`${styles.citationTab} ${activeCitationTab === 'laws' ? styles.citationTabActive : ''}`}
-              onClick={() => setActiveCitationTab('laws')}
-            >
-              Law Citations
+              <span className={styles.materialIcon}>fullscreen</span>
             </button>
           </div>
-
           <div className={styles.citationContent}>
-            {activeCitationTab === 'judgements' ? (
-              <div className={styles.citationList}>
-                {/* Mock Data for Judgement Citations */}
-                <div className={styles.citationCard}>
-                  <span className={styles.citationRef}>1973 AIR 1461</span>
-                  <h4 className={styles.citationName}>Kesavananda Bharati v. State of Kerala</h4>
-                  <p className={styles.citationDesc}>Referred extensively regarding the Basic Structure Doctrine.</p>
-                </div>
-                <div className={styles.citationCard}>
-                  <span className={styles.citationRef}>1978 AIR 597</span>
-                  <h4 className={styles.citationName}>Maneka Gandhi v. Union of India</h4>
-                  <p className={styles.citationDesc}>Cited in para 45 concerning Article 21 and personal liberty.</p>
-                </div>
-                <div className={styles.citationCard}>
-                  <span className={styles.citationRef}>1994 AIR 1918</span>
-                  <h4 className={styles.citationName}>S. R. Bommai v. Union of India</h4>
-                  <p className={styles.citationDesc}>Relied upon for establishing parameters of judicial review.</p>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.citationList}>
-                {/* Mock Data for Law Citations */}
-                <div className={styles.citationCard}>
-                  <span className={styles.citationRef}>Article 21</span>
-                  <h4 className={styles.citationName}>Constitution of India, 1950</h4>
-                  <p className={styles.citationDesc}>Protection of Life and Personal Liberty.</p>
-                </div>
-                <div className={styles.citationCard}>
-                  <span className={styles.citationRef}>Section 302</span>
-                  <h4 className={styles.citationName}>Indian Penal Code, 1860</h4>
-                  <p className={styles.citationDesc}>Punishment for murder.</p>
-                </div>
-                <div className={styles.citationCard}>
-                  <span className={styles.citationRef}>Section 154</span>
-                  <h4 className={styles.citationName}>Code of Criminal Procedure, 1973</h4>
-                  <p className={styles.citationDesc}>Information in cognizable cases (FIR).</p>
-                </div>
-              </div>
-            )}
+            <CitationTree 
+              activeTab={activeCitationTab} 
+              caseTitle={caseData?.title || "Current Case"} 
+              citedJudgements={caseData?.cited_judgements}
+              citedLaws={caseData?.cited_laws}
+              citedBy={caseData?.cited_by}
+            />
           </div>
         </aside>
 
@@ -1011,6 +1163,46 @@ const JudgementAnalyser: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {isFullscreen && (
+        <div className={styles.fullscreenOverlay}>
+          <div className={styles.fullscreenHeader}>
+            <div className={styles.fullscreenTitle}>
+              Citation Network - {caseData?.title || "Current Case"}
+            </div>
+            <div className={styles.fullscreenTabs}>
+              <button
+                className={`${styles.fullscreenTab} ${activeCitationTab === 'judgements' ? styles.fullscreenTabActive : ''}`}
+                onClick={() => setActiveCitationTab('judgements')}
+              >
+                Judgement Citations
+              </button>
+              <button
+                className={`${styles.fullscreenTab} ${activeCitationTab === 'laws' ? styles.fullscreenTabActive : ''}`}
+                onClick={() => setActiveCitationTab('laws')}
+              >
+                Law Citations
+              </button>
+            </div>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className={styles.fullscreenClose}
+              title="Close Fullscreen"
+            >
+              <span className={styles.materialIcon}>close</span>
+            </button>
+          </div>
+          <div className={styles.fullscreenBody}>
+            <CitationTree 
+              activeTab={activeCitationTab} 
+              caseTitle={caseData?.title || "Current Case"} 
+              citedJudgements={caseData?.cited_judgements}
+              citedLaws={caseData?.cited_laws}
+              citedBy={caseData?.cited_by}
+            />
+          </div>
+        </div>
+      )}
 
       {selectionMenu && (
         <div
