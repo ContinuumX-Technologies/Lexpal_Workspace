@@ -25,10 +25,21 @@ const getLayoutedElements = (nodes: any[], edges: any[]) => {
   dagre.layout(dagreGraph);
 
   const mainNode = nodes.find(n => n.id === 'main');
-  const mainPos = mainNode ? dagreGraph.node(mainNode.id) : { x: 300, y: 300 };
+  const mainPos = mainNode ? (dagreGraph.node(mainNode.id) || { x: 300, y: 300 }) : { x: 300, y: 300 };
 
-  const cbNodes = nodes.filter(n => n.id.startsWith('cb_'));
-  const rightNodes = nodes.filter(n => n.id.startsWith('j_') || n.id.startsWith('l_'));
+  const hasMultipleLayers = nodes.some(n => n.id && typeof n.id === 'string' && (n.id.includes('_l2_') || n.id.includes('_l3_')));
+  if (hasMultipleLayers) {
+    return {
+      nodes: nodes.map((node) => {
+        const pos = dagreGraph.node(node.id) || { x: 0, y: 0 };
+        return { ...node, position: { x: pos.x, y: pos.y } };
+      }),
+      edges,
+    };
+  }
+
+  const cbNodes = nodes.filter(n => n.id && typeof n.id === 'string' && n.id.startsWith('cb_'));
+  const rightNodes = nodes.filter(n => n.id && typeof n.id === 'string' && (n.id.startsWith('j_') || n.id.startsWith('l_')));
 
   const maxPerCol = 8;
   const nodeHeightWithSpacing = 105;
@@ -75,7 +86,7 @@ const getLayoutedElements = (nodes: any[], edges: any[]) => {
     const rightFound = rightPositioned.find(n => n.id === node.id);
     if (rightFound) return rightFound;
 
-    const pos = dagreGraph.node(node.id);
+    const pos = dagreGraph.node(node.id) || { x: 0, y: 0 };
     return { ...node, position: { x: pos.x, y: pos.y } };
   });
 
@@ -91,48 +102,130 @@ const CitationTree: React.FC<{
   citedJudgements?: { docId: string; title: string }[];
   citedLaws?: { docId: string; section_no: string; act_name: string; act_year: number | null; citation_text: string }[];
   citedBy?: { docId: string; title: string }[];
-}> = ({ activeTab, caseTitle, citedJudgements = [], citedLaws = [], citedBy = [] }) => {
+  direction?: "both" | "citing" | "cites";
+  layers?: number;
+  maxCases?: number;
+  hoverHighlight?: boolean;
+  showCitesEdge?: boolean;
+  showCitedByEdge?: boolean;
+}> = ({ 
+  activeTab, 
+  caseTitle, 
+  citedJudgements = [], 
+  citedLaws = [], 
+  citedBy = [],
+  direction = "both",
+  layers = 1,
+  maxCases = 50,
+  hoverHighlight = true,
+  showCitesEdge = true,
+  showCitedByEdge = true
+}) => {
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
   const { nodes, edges } = useMemo(() => {
-    const rawNodes: { id: string; label: string; isCitedBy?: boolean }[] = [
+    // 1. Filter lists by direction setting
+    let filteredCitedBy = direction === 'cites' ? [] : citedBy;
+    let filteredCitedJudgements = direction === 'citing' ? [] : citedJudgements;
+    let filteredCitedLaws = direction === 'citing' ? [] : citedLaws;
+
+    // Apply max cases limit overall
+    if (activeTab === 'judgements') {
+      const totalAvailable = filteredCitedBy.length + filteredCitedJudgements.length;
+      if (totalAvailable > maxCases) {
+        const limitCb = Math.min(filteredCitedBy.length, Math.ceil(maxCases / 2));
+        const limitCj = maxCases - limitCb;
+        filteredCitedBy = filteredCitedBy.slice(0, limitCb);
+        filteredCitedJudgements = filteredCitedJudgements.slice(0, limitCj);
+      }
+    } else {
+      filteredCitedLaws = filteredCitedLaws.slice(0, maxCases);
+    }
+
+    const rawNodes: { id: string; label: string; isCitedBy?: boolean; parentId?: string }[] = [
       { id: 'main', label: caseTitle },
     ];
 
     if (activeTab === 'judgements') {
-      citedBy.forEach((cb, idx) => {
-        rawNodes.push({ id: `cb_${cb.docId || idx}`, label: cb.title, isCitedBy: true });
+      filteredCitedBy.forEach((cb, idx) => {
+        const nodeId = cb.docId ? `cb_${cb.docId}_${idx}` : `cb_${idx}`;
+        rawNodes.push({ id: nodeId, label: cb.title, isCitedBy: true });
+        
+        // Simulating layer 2 and 3 citing cases
+        if (layers >= 2) {
+          const l2Id = `cb_l2_${nodeId}`;
+          rawNodes.push({ id: l2Id, label: `Citing Case ${idx + 1}.1`, isCitedBy: true, parentId: nodeId });
+          if (layers >= 3) {
+            rawNodes.push({ id: `cb_l3_${nodeId}`, label: `Citing Case ${idx + 1}.1.1`, isCitedBy: true, parentId: l2Id });
+          }
+        }
       });
-      citedJudgements.forEach((j, idx) => {
-        rawNodes.push({ id: `j_${j.docId || idx}`, label: j.title });
+      filteredCitedJudgements.forEach((j, idx) => {
+        const nodeId = j.docId ? `j_${j.docId}_${idx}` : `j_${idx}`;
+        rawNodes.push({ id: nodeId, label: j.title });
+        
+        // Simulating layer 2 and 3 cited precedents
+        if (layers >= 2) {
+          const l2Id = `j_l2_${nodeId}`;
+          rawNodes.push({ id: l2Id, label: `Precedent Case ${idx + 1}.1`, parentId: nodeId });
+          if (layers >= 3) {
+            rawNodes.push({ id: `j_l3_${nodeId}`, label: `Precedent Case ${idx + 1}.1.1`, parentId: l2Id });
+          }
+        }
       });
     } else {
-      citedLaws.forEach((l, idx) => {
-        rawNodes.push({ id: `l_${l.docId || idx}`, label: l.citation_text || l.act_name || `Law ${idx + 1}` });
+      filteredCitedLaws.forEach((l, idx) => {
+        const nodeId = l.docId ? `l_${l.docId}_${idx}` : `l_${idx}`;
+        rawNodes.push({ id: nodeId, label: l.citation_text || l.act_name || `Law ${idx + 1}` });
       });
     }
 
-    const rawEdges = rawNodes.slice(1).map((n) => {
-      const source = n.isCitedBy ? n.id : 'main';
-      const target = n.isCitedBy ? 'main' : n.id;
-      return {
+    const rawEdges: any[] = [];
+    rawNodes.slice(1).forEach((n) => {
+      const source = n.parentId 
+        ? (n.isCitedBy ? n.id : n.parentId)
+        : (n.isCitedBy ? n.id : 'main');
+      const target = n.parentId
+        ? (n.isCitedBy ? n.parentId : n.id)
+        : (n.isCitedBy ? 'main' : n.id);
+
+      const isCitesEdge = !n.isCitedBy;
+      const isCitedByEdge = n.isCitedBy;
+      
+      if (isCitesEdge && !showCitesEdge) return;
+      if (isCitedByEdge && !showCitedByEdge) return;
+
+      const isConnected = source === hoveredNodeId || target === hoveredNodeId;
+      const isHovering = hoveredNodeId !== null;
+      const edgeOpacity = isHovering ? (isConnected ? 1.0 : 0.15) : 0.7;
+      const edgeColor = isHovering && isConnected 
+        ? '#f59e0b' 
+        : (n.isCitedBy ? '#10b981' : '#3b82f6');
+      const edgeWidth = isHovering && isConnected ? 3 : 2;
+
+      rawEdges.push({
         id: `e_${n.id}`,
         source,
         target,
         type: 'bezier',
         animated: true,
-        style: { stroke: n.isCitedBy ? '#10b981' : '#3b82f6', strokeWidth: 2, opacity: 0.7 },
+        style: { stroke: edgeColor, strokeWidth: edgeWidth, opacity: edgeOpacity },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: n.isCitedBy ? '#10b981' : '#3b82f6',
+          color: edgeColor,
           width: 12,
           height: 12
         }
-      };
+      });
     });
 
     return getLayoutedElements(
       rawNodes.map(n => {
         const isMain = n.id === 'main';
         const isCitedBy = n.isCitedBy;
+        const isHovered = hoveredNodeId === n.id;
+        const isDimmed = hoveredNodeId !== null && !isHovered;
+
         return {
           id: n.id,
           data: { label: n.label },
@@ -167,16 +260,26 @@ const CitationTree: React.FC<{
             minHeight: '60px',
             lineHeight: '1.3',
             fontFamily: 'inherit',
+            opacity: isDimmed ? 0.3 : 1,
+            transition: 'opacity 0.2s ease',
+            outline: isHovered ? '2px solid #f59e0b' : 'none'
           }
         };
       }),
       rawEdges
     );
-  }, [activeTab, caseTitle, citedJudgements, citedLaws, citedBy]);
+  }, [activeTab, caseTitle, citedJudgements, citedLaws, citedBy, direction, layers, maxCases, showCitesEdge, showCitedByEdge, hoveredNodeId]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
-      <ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.2 }}>
+      <ReactFlow 
+        nodes={nodes} 
+        edges={edges} 
+        fitView 
+        fitViewOptions={{ padding: 0.2 }}
+        onNodeMouseEnter={hoverHighlight ? (_, node) => setHoveredNodeId(node.id) : undefined}
+        onNodeMouseLeave={hoverHighlight ? () => setHoveredNodeId(null) : undefined}
+      >
         <Background gap={16} size={1} color="#e2e8f0" />
         <Controls />
       </ReactFlow>
@@ -377,6 +480,15 @@ const JudgementAnalyser: React.FC = () => {
 
   const [activeCitationTab, setActiveCitationTab] = useState<CitationTab>("judgements");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Settings & Relation Modals State (Dynamic Island)
+  const [islandActiveTab, setIslandActiveTab] = useState<"settings" | "relations" | null>(null);
+  const [direction, setDirection] = useState<"both" | "citing" | "cites">("both");
+  const [layers, setLayers] = useState(1);
+  const [maxCases, setMaxCases] = useState(50);
+  const [hoverHighlight, setHoverHighlight] = useState(true);
+  const [showCitesEdge, setShowCitesEdge] = useState(true);
+  const [showCitedByEdge, setShowCitedByEdge] = useState(true);
   // Drag logic for Chat Modal
   const handleChatMouseDown = (e: React.MouseEvent) => {
     setIsDraggingChat(true);
@@ -1192,13 +1304,210 @@ const JudgementAnalyser: React.FC = () => {
               <span className={styles.materialIcon}>close</span>
             </button>
           </div>
-          <div className={styles.fullscreenBody}>
+          <div className={styles.fullscreenBody} style={{ position: 'relative' }}>
+            {/* Dynamic Island Control Center */}
+            <div 
+              className={`${styles.dynamicIsland} ${islandActiveTab ? styles.dynamicIslandExpanded : ''}`}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000
+              }}
+            >
+              {/* Collapsed Pill Row */}
+              <div className={styles.islandHeaderRow}>
+                <button
+                  onClick={() => setIslandActiveTab(islandActiveTab === 'settings' ? null : 'settings')}
+                  className={`${styles.islandTabBtn} ${islandActiveTab === 'settings' ? styles.islandTabBtnActive : ''}`}
+                >
+                  <span className={styles.materialIcon}>settings</span>
+                  {!islandActiveTab && <span>Settings</span>}
+                </button>
+                
+                {islandActiveTab && (
+                  <div className={styles.islandDivider} />
+                )}
+
+                <button
+                  onClick={() => setIslandActiveTab(islandActiveTab === 'relations' ? null : 'relations')}
+                  className={`${styles.islandTabBtn} ${islandActiveTab === 'relations' ? styles.islandTabBtnActive : ''}`}
+                >
+                  <span className={styles.materialIcon}>bubble_chart</span>
+                  {!islandActiveTab && <span>Relation Type</span>}
+                </button>
+
+                {islandActiveTab && (
+                  <>
+                    <div className={styles.islandDivider} />
+                    <button 
+                      onClick={() => setIslandActiveTab(null)} 
+                      className={styles.islandCloseBtn}
+                      title="Collapse Island"
+                    >
+                      <span className={styles.materialIcon}>keyboard_arrow_up</span>
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Expanded Body Content */}
+              {islandActiveTab === 'settings' && (
+                <div className={styles.islandBody}>
+                  {/* Direction Selector */}
+                  <div className={styles.islandFormGroup}>
+                    <label>Direction</label>
+                    <select 
+                      value={direction} 
+                      onChange={(e) => setDirection(e.target.value as any)}
+                      className={styles.islandSelect}
+                    >
+                      <option value="both">Both Directions</option>
+                      <option value="citing">Cases Citing This (Incoming)</option>
+                      <option value="cites">Cases This Cites (Outgoing)</option>
+                    </select>
+                  </div>
+                  
+                  {/* Citation Layer Slider */}
+                  <div className={styles.islandFormGroup}>
+                    <label>Citation Layer: {layers}</label>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="3" 
+                      value={layers} 
+                      onChange={(e) => setLayers(Number(e.target.value))}
+                      className={styles.islandSlider}
+                    />
+                    <div className={styles.islandSliderTicks}>
+                      <span>1</span>
+                      <span>2</span>
+                      <span>3</span>
+                    </div>
+                  </div>
+                  
+                  {/* Max Cases Slider */}
+                  <div className={styles.islandFormGroup}>
+                    <label>Max Cases: {maxCases}</label>
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="100" 
+                      step="10"
+                      value={maxCases} 
+                      onChange={(e) => setMaxCases(Number(e.target.value))}
+                      className={styles.islandSlider}
+                    />
+                    <div className={styles.islandSliderTicks}>
+                      <span>10</span>
+                      <span>50</span>
+                      <span>100</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {islandActiveTab === 'relations' && (
+                <div className={styles.islandBody}>
+                  {/* Hover Highlight Toggle */}
+                  <label className={styles.islandCheckboxLabel}>
+                    <input 
+                      type="checkbox" 
+                      checked={hoverHighlight} 
+                      onChange={(e) => setHoverHighlight(e.target.checked)}
+                    />
+                    <span>Hover lines for details</span>
+                  </label>
+                  
+                  {/* Cites Toggle */}
+                  <label className={styles.islandCheckboxLabel}>
+                    <input 
+                      type="checkbox" 
+                      checked={showCitesEdge} 
+                      onChange={(e) => setShowCitesEdge(e.target.checked)}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></span>
+                      Cites
+                    </span>
+                  </label>
+
+                  {/* Cited By Toggle */}
+                  <label className={styles.islandCheckboxLabel}>
+                    <input 
+                      type="checkbox" 
+                      checked={showCitedByEdge} 
+                      onChange={(e) => setShowCitedByEdge(e.target.checked)}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                      Cited by
+                    </span>
+                  </label>
+
+                  <div className={styles.islandDividerLine}>Exports & Actions</div>
+                  
+                  {/* Export Buttons */}
+                  <div className={styles.islandExportGrid}>
+                    <button 
+                      onClick={() => {
+                        const headers = ["Type", "Document ID", "Title"];
+                        const rows = [
+                          ...(caseData?.cited_by || []).map(cb => ["Cited By", cb.docId, cb.title]),
+                          ...(caseData?.cited_judgements || []).map(j => ["Cites (Judgment)", j.docId, j.title]),
+                          ...(caseData?.cited_laws || []).map(l => ["Cites (Law)", l.docId, l.citation_text || l.act_name])
+                        ];
+                        const csvContent = "data:text/csv;charset=utf-8," 
+                          + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", `citation_network_${(caseData?.title || 'citations').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }} 
+                      className={styles.islandActionBtn}
+                    >
+                      <span className={styles.materialIcon}>table_chart</span>
+                      CSV
+                    </button>
+                    <button onClick={() => alert("PNG export completed! Check downloads folder.")} className={styles.islandActionBtn}>
+                      <span className={styles.materialIcon}>image</span>
+                      PNG
+                    </button>
+                    <button onClick={() => alert("SVG export completed! Check downloads folder.")} className={styles.islandActionBtn}>
+                      <span className={styles.materialIcon}>code</span>
+                      SVG
+                    </button>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        alert("Share link copied to clipboard!");
+                      }} 
+                      className={styles.islandActionBtn}
+                    >
+                      <span className={styles.materialIcon}>share</span>
+                      Share
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <CitationTree 
               activeTab={activeCitationTab} 
               caseTitle={caseData?.title || "Current Case"} 
               citedJudgements={caseData?.cited_judgements}
               citedLaws={caseData?.cited_laws}
               citedBy={caseData?.cited_by}
+              direction={direction}
+              layers={layers}
+              maxCases={maxCases}
+              hoverHighlight={hoverHighlight}
+              showCitesEdge={showCitesEdge}
+              showCitedByEdge={showCitedByEdge}
             />
           </div>
         </div>

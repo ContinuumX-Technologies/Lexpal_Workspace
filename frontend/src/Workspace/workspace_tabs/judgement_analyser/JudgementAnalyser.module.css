@@ -1182,3 +1182,401 @@
   color: #0f172a;
   background-color: #f8fafc;
 }
+
+/* Floating controls on fullscreen canvas */
+.floatingSettingsButton,
+.floatingRelationButton {
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.floatingSettingsButton {
+  top: 16px;
+  left: 16px;
+}
+
+.floatingRelationButton {
+  top: 16px;
+  left: 130px;
+}
+
+.floatingSettingsButton:hover,
+.floatingRelationButton:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.floatingSettingsButton span,
+.floatingRelationButton span {
+  font-size: 16px;
+}
+
+/* Floating Modal popovers */
+.floatingModal {
+  position: absolute;
+  z-index: 1001;
+  width: 280px;
+  background-color: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.floatingModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.floatingModalHeader h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.floatingModalHeader button {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: #94a3b8;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.floatingModalHeader button:hover {
+  color: #0f172a;
+}
+
+.floatingModalBody {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formGroup label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.formSelect {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #0f172a;
+  outline: none;
+  background-color: white;
+}
+
+.formSlider {
+  width: 100%;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.sliderTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #64748b;
+  margin-top: -4px;
+}
+
+.formCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.formCheckboxLabel input {
+  width: 15px;
+  height: 15px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.modalDivider {
+  font-size: 9px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.exportGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.actionBtn span {
+  font-size: 16px;
+}
+
+/* Dynamic Island */
+.dynamicIsland {
+  background-color: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  padding: 6px 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  max-width: 340px;
+}
+
+.dynamicIslandExpanded {
+  padding: 16px 20px;
+  width: 320px;
+}
+
+.islandHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  height: 28px;
+}
+
+.islandTabBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 14px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.islandTabBtn:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.islandTabBtnActive {
+  color: #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.islandTabBtn span {
+  font-size: 16px;
+}
+
+.islandDivider {
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.islandCloseBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.islandCloseBtn:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.islandCloseBtn span {
+  font-size: 18px;
+}
+
+/* Island Expanded Body */
+.islandBody {
+  width: 100%;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.islandFormGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.islandFormGroup label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.islandSelect {
+  width: 100%;
+  padding: 6px 10px;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #f1f5f9;
+  outline: none;
+  cursor: pointer;
+}
+
+.islandSlider {
+  width: 100%;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.islandSliderTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #64748b;
+  margin-top: -4px;
+}
+
+.islandCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.islandCheckboxLabel input {
+  width: 14px;
+  height: 14px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.islandDividerLine {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.islandExportGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.islandActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.islandActionBtn:hover {
+  background-color: #334155;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+}
+
+.islandActionBtn span {
+  font-size: 16px;
+}
