@@ -1,6 +1,10 @@
 import { ENRICHMENT_INDEX, elasticsearchRequest } from "../infra/elasticsearch.client";
 import { EnrichmentDocument } from "./enrichmentIndex.service";
 
+
+
+
+
 export interface EnrichmentSearchRequest {
   query?: string;
   page?: number;
@@ -19,6 +23,12 @@ export interface EnrichmentSearchRequest {
   };
 }
 
+
+
+
+
+
+
 export interface EnrichmentSearchHit {
   id: string;
   score: number;
@@ -27,10 +37,24 @@ export interface EnrichmentSearchHit {
   match_reasons: string[];
 }
 
+
+
+
+
+
+
+
 function keywordTerms(field: string, values?: string[]) {
   if (!values?.length) return [];
   return [{ terms: { [field]: values } }];
 }
+
+
+
+
+
+
+
 
 function nestedTerms(path: string, field: string, values?: string[]) {
   if (!values?.length) return [];
@@ -45,6 +69,16 @@ function nestedTerms(path: string, field: string, values?: string[]) {
     },
   ];
 }
+
+
+
+
+
+
+
+
+
+
 
 function buildFilters(filters: EnrichmentSearchRequest["filters"] = {}) {
   const clauses: any[] = [
@@ -83,6 +117,16 @@ function buildFilters(filters: EnrichmentSearchRequest["filters"] = {}) {
 
   return clauses;
 }
+
+
+
+
+
+
+
+
+
+
 
 function buildQuery(query: string, filters: EnrichmentSearchRequest["filters"]) {
   const trimmed = query.trim();
@@ -232,6 +276,15 @@ function buildQuery(query: string, filters: EnrichmentSearchRequest["filters"]) 
   };
 }
 
+
+
+
+
+
+
+
+
+
 function matchReasons(hit: any): string[] {
   const reasons: string[] = [];
   const highlight = hit.highlight || {};
@@ -250,6 +303,13 @@ function matchReasons(hit: any): string[] {
 
   return reasons;
 }
+
+
+
+
+
+
+
 
 export async function searchEnrichmentMetadata(input: EnrichmentSearchRequest) {
   const page = Math.max(input.page || 1, 1);

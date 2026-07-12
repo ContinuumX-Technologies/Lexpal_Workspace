@@ -16,6 +16,12 @@ export type EmbeddingVector = number[];
 const embeddingCache = new Map<string, EmbeddingVector>();
 const MAX_CACHE_SIZE = 1000;
 
+
+
+
+
+
+
 export async function getEmbedding(
   text: string
 ): Promise<EmbeddingVector> {
@@ -43,6 +49,14 @@ export async function getEmbedding(
 
   return vector;
 }
+
+
+
+
+
+
+
+
 
 // -------------------------------
 // 2. Query Rewriting
@@ -93,6 +107,14 @@ Return ONLY the rewritten query.
 
   return rewritten;
 }
+
+
+
+
+
+
+
+
 
 // -------------------------------
 // 3. Generate Short Titles
@@ -160,6 +182,14 @@ Return ONLY a valid JSON array of strings in the same order.
   }
 }
 
+
+
+
+
+
+
+
+
 // -------------------------------
 // 4. Query Intent & Filter Extraction
 // -------------------------------
@@ -172,6 +202,14 @@ export interface SearchFilters {
   section_no?: string[];
   jurisdiction?: string;
 }
+
+
+
+
+
+
+
+
 
 // LRU Cache for Search Filters
 const filterCache = new Map<string, SearchFilters>();
@@ -213,6 +251,7 @@ User Query:
         content: prompt,
       },
     ],
+    //tool call implementation for the llm to send a structured json as output
     tools: [
       {
         type: "function",
@@ -264,6 +303,19 @@ User Query:
     return { refinedQuery: query };
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // -------------------------------
 // 5. Generate Judgment Summary

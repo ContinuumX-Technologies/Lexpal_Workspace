@@ -882,6 +882,18 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
     }
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
 async function scrapeAndInsertOnDemand(docId: string, collection: any): Promise<any> {
     try {
         const BASE_URL = 'https://indiankanoon.org';
