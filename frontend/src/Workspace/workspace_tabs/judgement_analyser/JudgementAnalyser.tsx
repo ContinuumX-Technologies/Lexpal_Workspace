@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo,useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
@@ -122,9 +122,25 @@ const CitationTree: React.FC<{
   showCitedByEdge = true
 }) => {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const reactFlowInstanceRef = useRef<any>(null);
 
-  const { nodes, edges } = useMemo(() => {
-    // 1. Filter lists by direction setting
+  // Stable event handlers to avoid re-binding listeners
+  const handleNodeMouseEnter = useCallback((_: any, node: any) => {
+    setHoveredNodeId(node.id);
+  }, []);
+
+  const handleNodeMouseLeave = useCallback(() => {
+    setHoveredNodeId(null);
+  }, []);
+
+  const onInit = useCallback((instance: any) => {
+    reactFlowInstanceRef.current = instance;
+    instance.fitView({ padding: 0.2 });
+  }, []);
+
+  // 1. Calculate Layouted Nodes and Edges once (does not run on mouse hover)
+  const layoutedData = useMemo(() => {
+    // Filter lists by direction setting
     let filteredCitedBy = direction === 'cites' ? [] : citedBy;
     let filteredCitedJudgements = direction === 'citing' ? [] : citedJudgements;
     let filteredCitedLaws = direction === 'citing' ? [] : citedLaws;
@@ -151,7 +167,6 @@ const CitationTree: React.FC<{
         const nodeId = cb.docId ? `cb_${cb.docId}_${idx}` : `cb_${idx}`;
         rawNodes.push({ id: nodeId, label: cb.title, isCitedBy: true });
         
-        // Simulating layer 2 and 3 citing cases
         if (layers >= 2) {
           const l2Id = `cb_l2_${nodeId}`;
           rawNodes.push({ id: l2Id, label: `Citing Case ${idx + 1}.1`, isCitedBy: true, parentId: nodeId });
@@ -164,7 +179,6 @@ const CitationTree: React.FC<{
         const nodeId = j.docId ? `j_${j.docId}_${idx}` : `j_${idx}`;
         rawNodes.push({ id: nodeId, label: j.title });
         
-        // Simulating layer 2 and 3 cited precedents
         if (layers >= 2) {
           const l2Id = `j_l2_${nodeId}`;
           rawNodes.push({ id: l2Id, label: `Precedent Case ${idx + 1}.1`, parentId: nodeId });
@@ -195,21 +209,15 @@ const CitationTree: React.FC<{
       if (isCitesEdge && !showCitesEdge) return;
       if (isCitedByEdge && !showCitedByEdge) return;
 
-      const isConnected = source === hoveredNodeId || target === hoveredNodeId;
-      const isHovering = hoveredNodeId !== null;
-      const edgeOpacity = isHovering ? (isConnected ? 1.0 : 0.15) : 0.7;
-      const edgeColor = isHovering && isConnected 
-        ? '#f59e0b' 
-        : (n.isCitedBy ? '#10b981' : '#3b82f6');
-      const edgeWidth = isHovering && isConnected ? 3 : 2;
+      const edgeColor = n.isCitedBy ? '#10b981' : '#3b82f6';
 
       rawEdges.push({
         id: `e_${n.id}`,
         source,
         target,
         type: 'bezier',
-        animated: true,
-        style: { stroke: edgeColor, strokeWidth: edgeWidth, opacity: edgeOpacity },
+        animated: false,
+        style: { stroke: edgeColor, strokeWidth: 2, opacity: 0.7 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: edgeColor,
@@ -223,8 +231,6 @@ const CitationTree: React.FC<{
       rawNodes.map(n => {
         const isMain = n.id === 'main';
         const isCitedBy = n.isCitedBy;
-        const isHovered = hoveredNodeId === n.id;
-        const isDimmed = hoveredNodeId !== null && !isHovered;
 
         return {
           id: n.id,
@@ -260,25 +266,71 @@ const CitationTree: React.FC<{
             minHeight: '60px',
             lineHeight: '1.3',
             fontFamily: 'inherit',
-            opacity: isDimmed ? 0.3 : 1,
-            transition: 'opacity 0.2s ease',
-            outline: isHovered ? '2px solid #f59e0b' : 'none'
+            opacity: 1,
+            outline: 'none'
           }
         };
       }),
       rawEdges
     );
-  }, [activeTab, caseTitle, citedJudgements, citedLaws, citedBy, direction, layers, maxCases, showCitesEdge, showCitedByEdge, hoveredNodeId]);
+  }, [activeTab, caseTitle, citedJudgements, citedLaws, citedBy, direction, layers, maxCases, showCitesEdge, showCitedByEdge]);
+
+  // Refit the view only when layout or data changes, not on hover
+  useEffect(() => {
+    if (reactFlowInstanceRef.current) {
+      const timer = setTimeout(() => {
+        reactFlowInstanceRef.current.fitView({ padding: 0.2, duration: 150 });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [layoutedData]);
+
+  // Inject dynamic CSS rules for mouse hover highlighting to prevent React Flow re-renders
+  const hoverHighlightCss = useMemo(() => {
+    if (!hoverHighlight || !hoveredNodeId) return "";
+    return `
+      /* Dim other nodes */
+      .react-flow__node {
+        opacity: 0.35 !important;
+        transition: opacity 0.15s ease !important;
+      }
+      /* Highlight hovered node */
+      .react-flow__node[data-id="${hoveredNodeId}"] {
+        opacity: 1 !important;
+        outline: 2px solid #f59e0b !important;
+      }
+      /* Dim all edges */
+      .react-flow__edge-path {
+        opacity: 0.15 !important;
+        stroke: #cbd5e1 !important;
+        stroke-width: 2px !important;
+        transition: opacity 0.15s ease !important;
+      }
+      /* Highlight direct source/target paths & markers */
+      .react-flow__edge[data-source="${hoveredNodeId}"] .react-flow__edge-path,
+      .react-flow__edge[data-target="${hoveredNodeId}"] .react-flow__edge-path {
+        opacity: 1 !important;
+        stroke: #f59e0b !important;
+        stroke-width: 3px !important;
+      }
+      .react-flow__edge[data-source="${hoveredNodeId}"] path,
+      .react-flow__edge[data-target="${hoveredNodeId}"] path {
+        stroke: #f59e0b !important;
+        fill: #f59e0b !important;
+      }
+    `;
+  }, [hoveredNodeId, hoverHighlight]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
+      {/* Inject custom styling rules dynamically on hover */}
+      {hoverHighlightCss && <style dangerouslySetInnerHTML={{ __html: hoverHighlightCss }} />}
       <ReactFlow 
-        nodes={nodes} 
-        edges={edges} 
-        fitView 
-        fitViewOptions={{ padding: 0.2 }}
-        onNodeMouseEnter={hoverHighlight ? (_, node) => setHoveredNodeId(node.id) : undefined}
-        onNodeMouseLeave={hoverHighlight ? () => setHoveredNodeId(null) : undefined}
+        nodes={layoutedData.nodes} 
+        edges={layoutedData.edges}
+        onInit={onInit}
+        onNodeMouseEnter={hoverHighlight ? handleNodeMouseEnter : undefined}
+        onNodeMouseLeave={hoverHighlight ? handleNodeMouseLeave : undefined}
       >
         <Background gap={16} size={1} color="#e2e8f0" />
         <Controls />
