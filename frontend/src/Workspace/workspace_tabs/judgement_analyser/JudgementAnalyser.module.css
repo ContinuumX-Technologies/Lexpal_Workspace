@@ -444,25 +444,234 @@
   line-height: 1.8;
 }
 
-/* Chat aside */
-.chatAside {
-  width: 450px;
-  border-left: 1px solid #f3f4f6;
-  background-color: #fcfcfc;
+/* ──────────────────────────────────────────────
+   Right Citation Panel (Replaces old chat)
+   ────────────────────────────────────────────── */
+.citationAside {
+  width: 420px;           /* CRITICAL: Enforces the width of the right panel */
+  min-width: 420px;       /* CRITICAL: Prevents flexbox from squishing it */
+  flex-shrink: 0;         /* CRITICAL: Keeps it exactly 420px */
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  overflow: hidden;
-  min-height: 0;
+  height: 100%;
+  background-color: #f8fafc;
+  border-left: 1px solid #e2e8f0;
+  position: relative;
+  z-index: 10;
 }
 
-.chatHeader {
-  height: 56px;
+.citationHeader {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #f3f4f6;
+  background-color: white;
+}
+
+.citationTab {
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.citationTab:hover {
+  color: #4b5563;
+  background-color: #f9fafb;
+}
+
+.citationTabActive {
+  color: #0f172a;
+  border-bottom-color: #0f172a;
+  background-color: #f8fafc;
+}
+
+.citationContent {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: #f1f5f9; /* Light grey canvas background */
+}
+
+/* Add this new class for the canvas container */
+.canvasContainer {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+/* Floating Legend Overlay */
+.graphLegend {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.legendItem:last-child {
+  margin-bottom: 0;
+}
+
+.legendColor {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.citationContent::-webkit-scrollbar {
+  width: 4px;
+}
+.citationContent::-webkit-scrollbar-track {
+  background: transparent;
+}
+.citationContent::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+.citationList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.citationCard {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: box-shadow 0.2s, border-color 0.2s;
+  cursor: pointer;
+}
+
+.citationCard:hover {
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  border-color: #d1d5db;
+}
+
+.citationRef {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563eb;
+  background-color: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.citationName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 6px 0;
+  line-height: 1.4;
+}
+
+.citationDesc {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+
+/* ──────────────────────────────────────────────
+   Draggable AI Chat Modal
+/* ──────────────────────────────────────────────
+   Draggable AI Chat Modal
+   ────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────
+   Draggable AI Chat Modal
+   ────────────────────────────────────────────── */
+.chatModal {
+  position: fixed;
+  z-index: 1000;
+  width: 400px;
+  height: 600px;
+  min-width: 300px;
+  min-height: 400px;
+  
+  /* Semi-transparent background for the ENTIRE modal */
+  background-color: rgba(252, 252, 252, 0.25); 
+  
+  /* Blur effect applied to everything inside the modal container */
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  
+  border-radius: 12px;
+  border: 1px solid rgba(229, 231, 235, 0.5); 
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
+}
+
+.chatModalBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* IMPORTANT: Ensure body background is transparent */
+  background-color: transparent !important; 
+}
+
+/* Also ensure the Header doesn't have a solid white background overriding the transparency */
+.chatModalHeader {
+  height: 48px;
+  background-color: rgba(255, 255, 255, 0.2); /* Make header match modal opacity */
+  border-bottom: 1px solid rgba(243, 244, 246, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  cursor: grab;
   flex-shrink: 0;
-  border-bottom: 1px solid #f3f4f6;
+  user-select: none;
+}
+
+.chatModalHeader:active {
+  cursor: grabbing;
+}
+
+.chatModalDragHandle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9ca3af;
 }
 
 .chatTitle {
@@ -473,197 +682,31 @@
   letter-spacing: 0.2em;
 }
 
-.chatMessages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
-}
-
-.chatMessages::-webkit-scrollbar {
-  width: 4px;
-}
-
-.chatMessages::-webkit-scrollbar-track {
+.chatModalCloseBtn {
   background: transparent;
-}
-
-.chatMessages::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 10px;
-}
-
-.messageGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.messageSender {
-  font-size: 10px;
-  font-weight: bold;
+  border: none;
   color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin: 0 0 0 4px;
-}
-
-.senderAI {
-  color: #111827;
-}
-
-.messageBubble {
-  background-color: white;
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid #f3f4f6;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
-}
-
-.messageText {
-  font-size: 13px;
-  line-height: 1.5;
-  color: #374151;
-}
-
-.paraChip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
-  border: 1px solid #e5e7eb;
-  font-size: 11px;
-  font-weight: bold;
-  color: black;
-  margin: 0 2px;
   cursor: pointer;
-  transition: background 0.2s;
-}
-
-.paraChip:hover {
-  background: #f3f4f6;
-}
-
-/* Chat input area */
-.chatInputArea {
-  padding: 32px;
-  background-color: #fcfcfc;
-  border-top: 1px solid #f3f4f6;
-}
-
-.inputContainer {
-  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
-  border: 1px solid #e5e7eb;
-  box-shadow: inset 0 1px 0 white, 0 1px 2px rgba(0, 0, 0, 0.05);
-  border-radius: 16px;
-  padding: 8px;
-  transition: box-shadow 0.5s;
-}
-
-.inputContainer:focus-within {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02), 0 0 0 2px #e5e7eb;
-}
-
-.pinnedChips {
-  padding: 8px 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.pinnedChips:empty {
-  display: none;
-}
-
-.inputChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background-color: white;
-  padding: 4px 12px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: bold;
-  color: #111827;
-  border: 1px solid #e5e7eb;
-}
-
-.inputRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-}
-
-.addButton {
-  padding: 8px;
-  color: #9ca3af;
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: color 0.2s;
-  flex-shrink: 0;
-}
-
-.addButton:hover {
-  color: black;
-}
-
-.textInput {
-  flex: 1;
-  background: transparent;
-  border: none;
-  font-size: 13px;
-  padding: 8px 4px;
-  resize: none;
-  outline: none;
-  color: #111827;
-  max-height: 128px;
-  scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
-}
-
-.textInput::placeholder {
-  color: #9ca3af;
-}
-
-.textInput::-webkit-scrollbar {
-  width: 4px;
-}
-
-.textInput::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.textInput::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 10px;
-}
-
-.sendButton {
-  width: 40px;
-  height: 40px;
-  background-color: black;
-  color: white;
-  border: none;
-  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: opacity 0.2s;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  flex-shrink: 0;
+  border-radius: 50%;
+  padding: 4px;
+  transition: all 0.2s;
 }
 
-.sendButton:hover {
-  opacity: 0.8;
+.chatModalCloseBtn:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.chatModalBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Ensure the body is fully opaque */
+  background-color: #fcfcfc; 
 }
 
 /* Footer */
@@ -798,7 +841,6 @@
   color: #2563eb;
 }
 
-
 /* Selection Popup */
 .selectionPopup {
   z-index: 1000;
@@ -903,7 +945,7 @@
 
 .gutterToolbar {
   position: absolute;
-  left: 24px; /* Floating on the left side of the document */
+  left: 24px;
   top: 50%;
   transform: translateY(-50%);
   width: 40px;
@@ -1002,8 +1044,20 @@
   color: #f8fafc;
 }
 
+.gutterArrowActive {
+  background-color: rgba(251, 191, 36, 0.2) !important;
+  color: #fbbf24 !important;
+}
+
 .gutterArrow span {
   font-size: 18px;
+}
+
+.gutterDivider {
+  width: 24px;
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
 }
 
 .loadingContainer {
@@ -1014,4 +1068,515 @@
   padding: 100px 0;
   width: 100%;
   min-height: 300px;
+}
+
+.fullscreenOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #f1f5f9;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreenHeader {
+  height: 60px;
+  background-color: white;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+
+.fullscreenTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+.fullscreenTabs {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+}
+
+.fullscreenTab {
+  height: 100%;
+  padding: 0 24px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fullscreenTab:hover {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+.fullscreenTabActive {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+.fullscreenClose {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background-color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.fullscreenClose:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.fullscreenBody {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.fullscreenToggle {
+  width: 40px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  border-left: 1px solid #f1f5f9;
+  transition: all 0.2s;
+}
+
+.fullscreenToggle:hover {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+/* Floating controls on fullscreen canvas */
+.floatingSettingsButton,
+.floatingRelationButton {
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.floatingSettingsButton {
+  top: 16px;
+  left: 16px;
+}
+
+.floatingRelationButton {
+  top: 16px;
+  left: 130px;
+}
+
+.floatingSettingsButton:hover,
+.floatingRelationButton:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.floatingSettingsButton span,
+.floatingRelationButton span {
+  font-size: 16px;
+}
+
+/* Floating Modal popovers */
+.floatingModal {
+  position: absolute;
+  z-index: 1001;
+  width: 280px;
+  background-color: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.floatingModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.floatingModalHeader h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.floatingModalHeader button {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: #94a3b8;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.floatingModalHeader button:hover {
+  color: #0f172a;
+}
+
+.floatingModalBody {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formGroup label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.formSelect {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #0f172a;
+  outline: none;
+  background-color: white;
+}
+
+.formSlider {
+  width: 100%;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.sliderTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #64748b;
+  margin-top: -4px;
+}
+
+.formCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.formCheckboxLabel input {
+  width: 15px;
+  height: 15px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.modalDivider {
+  font-size: 9px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.exportGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.actionBtn span {
+  font-size: 16px;
+}
+
+/* Dynamic Island */
+.dynamicIsland {
+  background-color: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  padding: 6px 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  max-width: 340px;
+}
+
+.dynamicIslandExpanded {
+  padding: 16px 20px;
+  width: 320px;
+}
+
+.islandHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  height: 28px;
+}
+
+.islandTabBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 14px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.islandTabBtn:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.islandTabBtnActive {
+  color: #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.islandTabBtn span {
+  font-size: 16px;
+}
+
+.islandDivider {
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.islandCloseBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.islandCloseBtn:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.islandCloseBtn span {
+  font-size: 18px;
+}
+
+/* Island Expanded Body */
+.islandBody {
+  width: 100%;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.islandFormGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.islandFormGroup label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.islandSelect {
+  width: 100%;
+  padding: 6px 10px;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #f1f5f9;
+  outline: none;
+  cursor: pointer;
+}
+
+.islandSlider {
+  width: 100%;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.islandSliderTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #64748b;
+  margin-top: -4px;
+}
+
+.islandCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.islandCheckboxLabel input {
+  width: 14px;
+  height: 14px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.islandDividerLine {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.islandExportGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.islandActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.islandActionBtn:hover {
+  background-color: #334155;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+}
+
+.islandActionBtn span {
+  font-size: 16px;
 }

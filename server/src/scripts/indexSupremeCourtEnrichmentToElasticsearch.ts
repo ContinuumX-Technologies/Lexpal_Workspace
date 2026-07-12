@@ -10,6 +10,8 @@ import {
   setEnrichmentIndexSearchMode,
   setEnrichmentIndexWriteMode,
 } from "../search/enrichmentIndex.service";
+// Import our new normalizer utilities to achieve parity with the Python script
+import { generateTitleMetadata, tokenize } from "../utils/normalizer.util";
 
 const mongoUrl = process.env.MONGO_CONNECTION_URL;
 const dbName = process.env.MONGO_DB_NAME || "Lexpal_Workspace";
@@ -92,7 +94,30 @@ async function main() {
     }
 
     for await (const doc of cursor) {
-      batch.push(normalizeEnrichmentDocument(doc));
+      // 1. Get the base formatted document from your existing service
+      const baseEsDoc = normalizeEnrichmentDocument(doc);
+
+      // 2. Extract and generate the specific party fields using the normalizer
+      const title = baseEsDoc.title || "";
+      const titleMetadata = generateTitleMetadata(title);
+      
+      // 3. Combine existing keywords with the newly tokenized title words
+      const titleTokens = tokenize(title);
+      const existingKeywords = Array.isArray(baseEsDoc.keywords) ? baseEsDoc.keywords : [];
+      const combinedKeywords = Array.from(new Set([...existingKeywords, ...titleTokens]));
+
+      // 4. Inject the new fields to match the Python Indexer.py output
+      const enrichedEsDoc = {
+        ...baseEsDoc,
+        normalized_title: titleMetadata.normalized_title,
+        petitioner: titleMetadata.petitioner,
+        respondent: titleMetadata.respondent,
+        reversed_title: titleMetadata.reversed_title,
+        parties_text: `${titleMetadata.petitioner} ${titleMetadata.respondent}`.trim(),
+        keywords: combinedKeywords
+      };
+
+      batch.push(enrichedEsDoc);
 
       if (batch.length >= options.batchSize) {
         await submitBatch(batch);

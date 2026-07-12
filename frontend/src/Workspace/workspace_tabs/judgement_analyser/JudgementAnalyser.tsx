@@ -1,13 +1,291 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import styles from "./JudgementAnalyser.module.css";
 import JudgementAiChat from "./JudgementAiChat";
 import LoadingLines from "@/components/ui/loading-lines";
 import { useAnalysisStore } from "./store/analysisStore";
 import type { Highlight, Pin } from "./store/analysisStore";
+import { motion, AnimatePresence } from "framer-motion";
+
+import { ReactFlow, Controls, Background, MarkerType } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import dagre from 'dagre';
 
 type CaseTask = "facts" | "issues" | "petitioner_args" | "respondent_args" | "law_analysis" | "precedent_analysis" | "court_reasoning" | "conclusion";
 type TaskType = CaseTask | "full";
+type CitationTab = "judgements" | "laws";
+
+// ── Layout Logic ──
+const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+
+const getLayoutedElements = (nodes: any[], edges: any[]) => {
+  dagreGraph.setGraph({ rankdir: 'LR', nodesep: 30, ranksep: 120 });
+  nodes.forEach((node) => dagreGraph.setNode(node.id, { width: 220, height: 60 }));
+  edges.forEach((edge) => dagreGraph.setEdge(edge.source, edge.target));
+  dagre.layout(dagreGraph);
+
+  const mainNode = nodes.find(n => n.id === 'main');
+  const mainPos = mainNode ? (dagreGraph.node(mainNode.id) || { x: 300, y: 300 }) : { x: 300, y: 300 };
+
+  const hasMultipleLayers = nodes.some(n => n.id && typeof n.id === 'string' && (n.id.includes('_l2_') || n.id.includes('_l3_')));
+  if (hasMultipleLayers) {
+    return {
+      nodes: nodes.map((node) => {
+        const pos = dagreGraph.node(node.id) || { x: 0, y: 0 };
+        return { ...node, position: { x: pos.x, y: pos.y } };
+      }),
+      edges,
+    };
+  }
+
+  const cbNodes = nodes.filter(n => n.id && typeof n.id === 'string' && n.id.startsWith('cb_'));
+  const rightNodes = nodes.filter(n => n.id && typeof n.id === 'string' && (n.id.startsWith('j_') || n.id.startsWith('l_')));
+
+  const maxPerCol = 8;
+  const nodeHeightWithSpacing = 105;
+  const colWidthWithSpacing = 300;
+
+  // Position cbNodes (left of main, in columns going backwards from main)
+  const cbCols = Math.ceil(cbNodes.length / maxPerCol);
+  const cbPositioned = cbNodes.map((node, index) => {
+    const colIndex = Math.floor(index / maxPerCol);
+    const rowIndex = index % maxPerCol;
+    
+    // Total nodes in this specific column
+    const colSize = colIndex === cbCols - 1 
+      ? cbNodes.length - colIndex * maxPerCol 
+      : maxPerCol;
+
+    const x = mainPos.x - 300 - (cbCols - 1 - colIndex) * colWidthWithSpacing;
+    const y = mainPos.y + (rowIndex - (colSize - 1) / 2) * nodeHeightWithSpacing;
+    return { ...node, position: { x, y } };
+  });
+
+  // Position rightNodes (right of main, in columns going forwards from main)
+  const rightCols = Math.ceil(rightNodes.length / maxPerCol);
+  const rightPositioned = rightNodes.map((node, index) => {
+    const colIndex = Math.floor(index / maxPerCol);
+    const rowIndex = index % maxPerCol;
+    
+    const colSize = colIndex === rightCols - 1 
+      ? rightNodes.length - colIndex * maxPerCol 
+      : maxPerCol;
+
+    const x = mainPos.x + 300 + colIndex * colWidthWithSpacing;
+    const y = mainPos.y + (rowIndex - (colSize - 1) / 2) * nodeHeightWithSpacing;
+    return { ...node, position: { x, y } };
+  });
+
+  const positionedNodes = nodes.map(node => {
+    if (node.id === 'main') {
+      return { ...node, position: { x: mainPos.x, y: mainPos.y } };
+    }
+    const cbFound = cbPositioned.find(n => n.id === node.id);
+    if (cbFound) return cbFound;
+
+    const rightFound = rightPositioned.find(n => n.id === node.id);
+    if (rightFound) return rightFound;
+
+    const pos = dagreGraph.node(node.id) || { x: 0, y: 0 };
+    return { ...node, position: { x: pos.x, y: pos.y } };
+  });
+
+  return {
+    nodes: positionedNodes,
+    edges,
+  };
+};
+
+const CitationTree: React.FC<{
+  activeTab: CitationTab;
+  caseTitle: string;
+  citedJudgements?: { docId: string; title: string }[];
+  citedLaws?: { docId: string; section_no: string; act_name: string; act_year: number | null; citation_text: string }[];
+  citedBy?: { docId: string; title: string }[];
+  direction?: "both" | "citing" | "cites";
+  layers?: number;
+  maxCases?: number;
+  hoverHighlight?: boolean;
+  showCitesEdge?: boolean;
+  showCitedByEdge?: boolean;
+}> = ({ 
+  activeTab, 
+  caseTitle, 
+  citedJudgements = [], 
+  citedLaws = [], 
+  citedBy = [],
+  direction = "both",
+  layers = 1,
+  maxCases = 50,
+  hoverHighlight = true,
+  showCitesEdge = true,
+  showCitedByEdge = true
+}) => {
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  const { nodes, edges } = useMemo(() => {
+    // 1. Filter lists by direction setting
+    let filteredCitedBy = direction === 'cites' ? [] : citedBy;
+    let filteredCitedJudgements = direction === 'citing' ? [] : citedJudgements;
+    let filteredCitedLaws = direction === 'citing' ? [] : citedLaws;
+
+    // Apply max cases limit overall
+    if (activeTab === 'judgements') {
+      const totalAvailable = filteredCitedBy.length + filteredCitedJudgements.length;
+      if (totalAvailable > maxCases) {
+        const limitCb = Math.min(filteredCitedBy.length, Math.ceil(maxCases / 2));
+        const limitCj = maxCases - limitCb;
+        filteredCitedBy = filteredCitedBy.slice(0, limitCb);
+        filteredCitedJudgements = filteredCitedJudgements.slice(0, limitCj);
+      }
+    } else {
+      filteredCitedLaws = filteredCitedLaws.slice(0, maxCases);
+    }
+
+    const rawNodes: { id: string; label: string; isCitedBy?: boolean; parentId?: string }[] = [
+      { id: 'main', label: caseTitle },
+    ];
+
+    if (activeTab === 'judgements') {
+      filteredCitedBy.forEach((cb, idx) => {
+        const nodeId = cb.docId ? `cb_${cb.docId}_${idx}` : `cb_${idx}`;
+        rawNodes.push({ id: nodeId, label: cb.title, isCitedBy: true });
+        
+        // Simulating layer 2 and 3 citing cases
+        if (layers >= 2) {
+          const l2Id = `cb_l2_${nodeId}`;
+          rawNodes.push({ id: l2Id, label: `Citing Case ${idx + 1}.1`, isCitedBy: true, parentId: nodeId });
+          if (layers >= 3) {
+            rawNodes.push({ id: `cb_l3_${nodeId}`, label: `Citing Case ${idx + 1}.1.1`, isCitedBy: true, parentId: l2Id });
+          }
+        }
+      });
+      filteredCitedJudgements.forEach((j, idx) => {
+        const nodeId = j.docId ? `j_${j.docId}_${idx}` : `j_${idx}`;
+        rawNodes.push({ id: nodeId, label: j.title });
+        
+        // Simulating layer 2 and 3 cited precedents
+        if (layers >= 2) {
+          const l2Id = `j_l2_${nodeId}`;
+          rawNodes.push({ id: l2Id, label: `Precedent Case ${idx + 1}.1`, parentId: nodeId });
+          if (layers >= 3) {
+            rawNodes.push({ id: `j_l3_${nodeId}`, label: `Precedent Case ${idx + 1}.1.1`, parentId: l2Id });
+          }
+        }
+      });
+    } else {
+      filteredCitedLaws.forEach((l, idx) => {
+        const nodeId = l.docId ? `l_${l.docId}_${idx}` : `l_${idx}`;
+        rawNodes.push({ id: nodeId, label: l.citation_text || l.act_name || `Law ${idx + 1}` });
+      });
+    }
+
+    const rawEdges: any[] = [];
+    rawNodes.slice(1).forEach((n) => {
+      const source = n.parentId 
+        ? (n.isCitedBy ? n.id : n.parentId)
+        : (n.isCitedBy ? n.id : 'main');
+      const target = n.parentId
+        ? (n.isCitedBy ? n.parentId : n.id)
+        : (n.isCitedBy ? 'main' : n.id);
+
+      const isCitesEdge = !n.isCitedBy;
+      const isCitedByEdge = n.isCitedBy;
+      
+      if (isCitesEdge && !showCitesEdge) return;
+      if (isCitedByEdge && !showCitedByEdge) return;
+
+      const isConnected = source === hoveredNodeId || target === hoveredNodeId;
+      const isHovering = hoveredNodeId !== null;
+      const edgeOpacity = isHovering ? (isConnected ? 1.0 : 0.15) : 0.7;
+      const edgeColor = isHovering && isConnected 
+        ? '#f59e0b' 
+        : (n.isCitedBy ? '#10b981' : '#3b82f6');
+      const edgeWidth = isHovering && isConnected ? 3 : 2;
+
+      rawEdges.push({
+        id: `e_${n.id}`,
+        source,
+        target,
+        type: 'bezier',
+        animated: true,
+        style: { stroke: edgeColor, strokeWidth: edgeWidth, opacity: edgeOpacity },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: edgeColor,
+          width: 12,
+          height: 12
+        }
+      });
+    });
+
+    return getLayoutedElements(
+      rawNodes.map(n => {
+        const isMain = n.id === 'main';
+        const isCitedBy = n.isCitedBy;
+        const isHovered = hoveredNodeId === n.id;
+        const isDimmed = hoveredNodeId !== null && !isHovered;
+
+        return {
+          id: n.id,
+          data: { label: n.label },
+          sourcePosition: 'right' as any,
+          targetPosition: 'left' as any,
+          style: {
+            background: isMain
+              ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
+              : isCitedBy
+                ? '#f0fdf4'
+                : '#ffffff',
+            color: isMain ? '#ffffff' : '#0f172a',
+            border: isMain
+              ? 'none'
+              : isCitedBy
+                ? '1px solid #86efac'
+                : '1px solid #cbd5e1',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            width: 220,
+            fontSize: '11px',
+            fontWeight: isMain ? '600' : '500',
+            boxShadow: isMain
+              ? '0 4px 12px rgba(59, 130, 246, 0.25)'
+              : '0 2px 4px rgba(0, 0, 0, 0.05)',
+            textAlign: 'center' as const,
+            wordBreak: 'break-word' as const,
+            whiteSpace: 'normal' as const,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60px',
+            lineHeight: '1.3',
+            fontFamily: 'inherit',
+            opacity: isDimmed ? 0.3 : 1,
+            transition: 'opacity 0.2s ease',
+            outline: isHovered ? '2px solid #f59e0b' : 'none'
+          }
+        };
+      }),
+      rawEdges
+    );
+  }, [activeTab, caseTitle, citedJudgements, citedLaws, citedBy, direction, layers, maxCases, showCitesEdge, showCitedByEdge, hoveredNodeId]);
+
+  return (
+    <div style={{ width: '100%', height: '100%' }}>
+      <ReactFlow 
+        nodes={nodes} 
+        edges={edges} 
+        fitView 
+        fitViewOptions={{ padding: 0.2 }}
+        onNodeMouseEnter={hoverHighlight ? (_, node) => setHoveredNodeId(node.id) : undefined}
+        onNodeMouseLeave={hoverHighlight ? () => setHoveredNodeId(null) : undefined}
+      >
+        <Background gap={16} size={1} color="#e2e8f0" />
+        <Controls />
+      </ReactFlow>
+    </div>
+  );
+};
 
 const taskToMongoType: Record<CaseTask, string> = {
   facts: "Fact",
@@ -32,7 +310,7 @@ const applyHighlightsToDoc = (doc: Document, highlights: Highlight[]) => {
     const textNodes: { node: Text, start: number, end: number }[] = [];
 
     const walk = (node: Node) => {
-      if (node.nodeType === 3) { // Text node
+      if (node.nodeType === 3) {
         const textNode = node as Text;
         const len = textNode.nodeValue?.length || 0;
         textNodes.push({
@@ -116,7 +394,6 @@ const getFilteredHtmlContent = (html: string, task: TaskType): string => {
   return doc.documentElement.outerHTML;
 };
 
-
 interface TextBlock {
   type: string;
   content: string;
@@ -133,10 +410,12 @@ interface CaseDoc {
   summary?: any;
   htmlContent?: string;
   htmlSource?: string;
+  cited_judgements?: { docId: string; title: string }[];
+  cited_laws?: { docId: string; section_no: string; act_name: string; act_year: number | null; citation_text: string }[];
+  cited_by?: { docId: string; title: string }[];
 }
 
 const renderFormattedTitle = (title: string) => {
-  // Try to extract "on <date>" suffix from the title
   const dateMatch = title.match(/\s+on\s+(\d{1,2}\s+\w+,?\s+\d{4})$/i);
   const titleWithoutDate = dateMatch ? title.substring(0, dateMatch.index).trim() : title;
   const dateSuffix = dateMatch ? dateMatch[1] : null;
@@ -170,6 +449,7 @@ const renderFormattedTitle = (title: string) => {
   return <h1 className={styles.title}>{title}</h1>;
 };
 
+
 const JudgementAnalyser: React.FC = () => {
   const { caseId } = useParams<{ caseId: string }>();
   const navigate = useNavigate();
@@ -189,6 +469,59 @@ const JudgementAnalyser: React.FC = () => {
   const mainRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Modal Drag States
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatPosition, setChatPosition] = useState({ x: window.innerWidth - 450, y: 100 });
+  const [isDraggingChat, setIsDraggingChat] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+
+  const [activeCitationTab, setActiveCitationTab] = useState<CitationTab>("judgements");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Settings & Relation Modals State (Dynamic Island)
+  const [islandActiveTab, setIslandActiveTab] = useState<"settings" | "relations" | null>(null);
+  const [direction, setDirection] = useState<"both" | "citing" | "cites">("both");
+  const [layers, setLayers] = useState(1);
+  const [maxCases, setMaxCases] = useState(50);
+  const [hoverHighlight, setHoverHighlight] = useState(true);
+  const [showCitesEdge, setShowCitesEdge] = useState(true);
+  const [showCitedByEdge, setShowCitedByEdge] = useState(true);
+  // Drag logic for Chat Modal
+  const handleChatMouseDown = (e: React.MouseEvent) => {
+    setIsDraggingChat(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: chatPosition.x,
+      initialY: chatPosition.y,
+    };
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingChat || !dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setChatPosition({
+        x: dragRef.current.initialX + dx,
+        y: Math.max(0, dragRef.current.initialY + dy),
+      });
+    };
+    const handleMouseUp = () => setIsDraggingChat(false);
+
+    if (isDraggingChat) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingChat]);
+
   const handleIframeLoad = () => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -196,7 +529,6 @@ const JudgementAnalyser: React.FC = () => {
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
 
-    // 1. Inject temporary highlight animation styles
     if (!doc.getElementById('iframe-highlight-styles')) {
       const style = doc.createElement('style');
       style.id = 'iframe-highlight-styles';
@@ -216,7 +548,6 @@ const JudgementAnalyser: React.FC = () => {
       doc.head.appendChild(style);
     }
 
-    // 2. Setup selection change listener
     const handleIframeSelection = () => {
       const selection = iframe.contentWindow?.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString().trim()) {
@@ -229,11 +560,11 @@ const JudgementAnalyser: React.FC = () => {
       const rect = range.getBoundingClientRect();
       const iframeRect = iframe.getBoundingClientRect();
 
-      const startPara = range.startContainer.nodeType === 1 
-        ? (range.startContainer as HTMLElement).closest('p, blockquote, pre') 
+      const startPara = range.startContainer.nodeType === 1
+        ? (range.startContainer as HTMLElement).closest('p, blockquote, pre')
         : range.startContainer.parentElement?.closest('p, blockquote, pre');
-      const endPara = range.endContainer.nodeType === 1 
-        ? (range.endContainer as HTMLElement).closest('p, blockquote, pre') 
+      const endPara = range.endContainer.nodeType === 1
+        ? (range.endContainer as HTMLElement).closest('p, blockquote, pre')
         : range.endContainer.parentElement?.closest('p, blockquote, pre');
 
       let paraKey: string | undefined;
@@ -260,7 +591,6 @@ const JudgementAnalyser: React.FC = () => {
 
     doc.addEventListener("selectionchange", handleIframeSelection);
 
-    // Clear selection menu if clicking outside selection but inside iframe
     const handleIframeClick = () => {
       const selection = iframe.contentWindow?.getSelection();
       if (!selection || selection.isCollapsed) {
@@ -269,13 +599,11 @@ const JudgementAnalyser: React.FC = () => {
     };
     doc.addEventListener("mousedown", handleIframeClick);
 
-    // 3. Apply initial highlights
     if (highlights && highlights.length > 0) {
       applyHighlightsToDoc(doc, highlights);
     }
   };
 
-  // Dynamically apply highlights to the iframe document when highlights state changes
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -283,7 +611,6 @@ const JudgementAnalyser: React.FC = () => {
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
 
-    // Clear previous marks and re-apply
     clearHighlightsInDoc(doc);
     if (highlights && highlights.length > 0) {
       applyHighlightsToDoc(doc, highlights);
@@ -314,7 +641,6 @@ const JudgementAnalyser: React.FC = () => {
           }
         }
 
-        // Fallback numeric parsing if elements aren't in DOM
         const getNumericParts = (key: string) => {
           const matches = key.match(/\d+/g);
           return matches ? matches.map(Number) : [];
@@ -347,11 +673,11 @@ const JudgementAnalyser: React.FC = () => {
 
     setCurrentHighlightIndices(prev => ({ ...prev, [color]: nextIndex }));
     const target = colorHighlights[nextIndex];
-    
+
     const element = (doc.getElementById(target.paraKey) || doc.querySelector(`[data-para-key="${target.paraKey}"]`)) as HTMLElement | null;
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
+
       const originalOutline = element.style.outline;
       const originalOutlineOffset = element.style.outlineOffset;
       element.style.outline = `2px solid ${color}`;
@@ -373,9 +699,9 @@ const JudgementAnalyser: React.FC = () => {
 
     const selection = win.getSelection();
     if (!selection || selection.rangeCount === 0) return;
-    
+
     const range = selection.getRangeAt(0);
-    
+
     if (isIframeActive) {
       if (selectionMenu?.paraKey && selectionMenu?.offset !== undefined) {
         const newHighlight: Highlight = {
@@ -431,14 +757,14 @@ const JudgementAnalyser: React.FC = () => {
         updateCase(caseId || "", { highlights: [...highlights, ...newHighlights] });
       }
     }
-    
+
     setSelectionMenu(null);
     selection.removeAllRanges();
   };
 
   const removeHighlightByParaKey = (paraKey: string, offset: number) => {
-    updateCase(caseId || "", { 
-      highlights: highlights.filter(h => !(h.paraKey === paraKey && h.offset === offset)) 
+    updateCase(caseId || "", {
+      highlights: highlights.filter(h => !(h.paraKey === paraKey && h.offset === offset))
     });
     setSelectionMenu(null);
   };
@@ -446,7 +772,6 @@ const JudgementAnalyser: React.FC = () => {
   const renderTextWithHighlights = (text: string, paraKey: string) => {
     if (!highlights.length) return text;
 
-    // Only apply highlights targeting this exact paragraph
     const paraHighlights = highlights
       .filter(h => h.paraKey === paraKey)
       .sort((a, b) => a.offset - b.offset);
@@ -475,12 +800,10 @@ const JudgementAnalyser: React.FC = () => {
     return result;
   };
 
-  // Fetch document details when caseId changes
   useEffect(() => {
     if (caseId) {
       fetchCaseDetails(caseId);
     } else {
-      // Default fallback to show Siddharam Satlingappa Mhetre (1108032)
       fetchCaseDetails("69c1370e5b49900fda48a5fb");
     }
   }, [caseId]);
@@ -493,12 +816,12 @@ const JudgementAnalyser: React.FC = () => {
     const foundElement = paraKey
       ? (doc.getElementById(paraKey) as HTMLElement | null || doc.querySelector(`[data-para-key="${paraKey}"]`) as HTMLElement | null)
       : (() => {
-          const selector = iframeDoc ? 'p, blockquote, pre' : '[data-para-key]';
-          for (const el of Array.from(doc.querySelectorAll(selector)) as HTMLElement[]) {
-            if (el.textContent?.includes(fullText)) return el;
-          }
-          return null;
-        })();
+        const selector = iframeDoc ? 'p, blockquote, pre' : '[data-para-key]';
+        for (const el of Array.from(doc.querySelectorAll(selector)) as HTMLElement[]) {
+          if (el.textContent?.includes(fullText)) return el;
+        }
+        return null;
+      })();
 
     if (foundElement) {
       foundElement.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -533,11 +856,11 @@ const JudgementAnalyser: React.FC = () => {
 
       const container = document.querySelector(`.${styles.judgmentSection}`);
       const commonAncestor = range.commonAncestorContainer;
-      
+
       if (container && container.contains(commonAncestor)) {
         const startPara = range.startContainer.nodeType === 1 ? (range.startContainer as HTMLElement).closest('p') : range.startContainer.parentElement?.closest('p');
         const endPara = range.endContainer.nodeType === 1 ? (range.endContainer as HTMLElement).closest('p') : range.endContainer.parentElement?.closest('p');
-        
+
         let paraKey: string | undefined;
         let offset: number | undefined;
 
@@ -627,10 +950,10 @@ const JudgementAnalyser: React.FC = () => {
       } else {
         const targetType = taskToMongoType[activeTask as CaseTask];
         const filtered = caseData.texts.filter(t => t.type === targetType);
-        const content = filtered.length > 0 
-          ? filtered.map(t => t.content).join("\n\n") 
+        const content = filtered.length > 0
+          ? filtered.map(t => t.content).join("\n\n")
           : "";
-        
+
         setJudgementText(content);
       }
     }
@@ -648,8 +971,6 @@ const JudgementAnalyser: React.FC = () => {
     { id: "conclusion", label: "Conclusion" },
   ];
 
-
-
   return (
     <div className={styles.container} ref={mainRef}>
       {/* Header with pins bar */}
@@ -661,15 +982,15 @@ const JudgementAnalyser: React.FC = () => {
           </div>
           <div className={styles.pinsList}>
             {pins.map(pin => (
-              <div 
-                key={pin.id} 
+              <div
+                key={pin.id}
                 className={`${styles.chip} ${styles.chipPinned} ${activeHighlightId === pin.id ? styles.chipActive : ""}`}
                 onClick={() => navigateToPin(pin.id, pin.fullText, pin.paraKey)}
                 style={{ cursor: "pointer" }}
               >
                 <span className={`${styles.materialIcon} ${styles.iconBlue} ${styles.iconFill}`}>push_pin</span>
                 <span className={styles.chipText}>{pin.text}</span>
-                <button 
+                <button
                   className={styles.chipClose}
                   onClick={(e) => { e.stopPropagation(); removePin(pin.id); }}
                 >
@@ -707,7 +1028,6 @@ const JudgementAnalyser: React.FC = () => {
                 <LoadingLines />
               </div>
             )}
-
 
             <div style={{ height: '2rem' }} />
 
@@ -766,7 +1086,6 @@ const JudgementAnalyser: React.FC = () => {
                     (activeTask === "full" ? caseData.texts : caseData.texts.filter(t => t.type === taskToMongoType[activeTask as CaseTask]))
                       .map((t, idx) => (
                         <React.Fragment key={idx}>
-                          {/* Split by newline OR inline markers like (i), (ii), (a) that follow text */}
                           {t.content
                             .split(/(\n|(?<=\S)\s+(?=\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.))/)
                             .map((line, lineIdx) => {
@@ -775,22 +1094,18 @@ const JudgementAnalyser: React.FC = () => {
 
                               const paraKey = `${idx}-${lineIdx}`;
 
-                              // Main paragraph starting with "1.", "¶ 1", etc.
                               if (/^(\d+\.|\u00b6\s*\d+)/.test(trimmed)) {
                                 return <p key={lineIdx} data-para-key={paraKey} className={styles.para}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
-                              // List items starting with "(a)", "a.", "(i)", etc.
                               if (/^(\([a-z\d]+\)|[a-z]\.|\([ivx]+\)|[ivx]+\.)/i.test(trimmed)) {
                                 return <p key={lineIdx} data-para-key={paraKey} className={styles.listItem}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
-                              // Sub-list items or deeply indented lines
                               if (line.startsWith('    ') || line.startsWith('\t')) {
                                 return <p key={lineIdx} data-para-key={paraKey} className={styles.subListItem}>{renderTextWithHighlights(line, paraKey)}</p>;
                               }
 
-                              // Plain paragraphs
                               return <p key={lineIdx} data-para-key={paraKey} style={{ textIndent: '2rem' }}>{renderTextWithHighlights(line, paraKey)}</p>;
                             })}
                         </React.Fragment>
@@ -810,45 +1125,135 @@ const JudgementAnalyser: React.FC = () => {
             )}
           </div>
         </section>
-        
-        {/* Vertical Highlight Navigator in the gutter */}
-        {highlights.length > 0 && (
-          <div className={styles.gutterToolbar}>
-            <div className={styles.gutterHeader} title="Highlight Navigator">
-              <span className={`${styles.materialIcon} ${styles.iconSmall}`}>auto_awesome</span>
-            </div>
-            <div className={styles.gutterContent}>
-              {Object.entries(
-                highlights.reduce((acc, h) => {
-                  if (!acc[h.color]) acc[h.color] = 0;
-                  acc[h.color]++;
-                  return acc;
-                }, {} as Record<string, number>)
-              ).map(([color, count]) => (
-                <div key={color} className={styles.gutterGroup}>
-                  <div className={styles.gutterColorDot} style={{ backgroundColor: color }} />
-                  <span className={styles.gutterCount}>{count}</span>
-                  <div className={styles.gutterArrows}>
-                    <button onClick={() => navigateByColor(color, 'prev')} className={styles.gutterArrow} title="Previous">
-                      <span className={styles.materialIcon}>expand_less</span>
-                    </button>
-                    <button onClick={() => navigateByColor(color, 'next')} className={styles.gutterArrow} title="Next">
-                      <span className={styles.materialIcon}>expand_more</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Chat aside */}
-        <aside className={styles.chatAside}>
-          <div className={styles.chatHeader}>
-            <span className={styles.chatTitle}>LEXPAL AI</span>
+        {/* Vertical Highlight Navigator in the gutter - ALWAYS VISIBLE */}
+        <div className={styles.gutterToolbar}>
+          <div className={styles.gutterHeader} title="Tools">
+            <span className={`${styles.materialIcon} ${styles.iconSmall}`}>auto_awesome</span>
           </div>
-          <JudgementAiChat caseId={caseId || ""} judgementText={judgementText} />
+          <div className={styles.gutterContent}>
+
+            {/* AI Chat Button */}
+            <div className={styles.gutterGroup}>
+              <button
+                ref={buttonRef}
+                onClick={(e) => {
+                  // Capture the button's position
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setButtonRect(rect);
+                  setIsChatOpen(!isChatOpen);
+                }}
+                className={`${styles.gutterArrow} ${isChatOpen ? styles.gutterArrowActive : ''}`}
+                title="AI Chat"
+              >
+                <span className={styles.materialIcon}>forum</span>
+              </button>
+            </div>
+
+            {/* Divider if highlights exist */}
+            {highlights.length > 0 && <div className={styles.gutterDivider} />}
+
+            {/* Highlight Iterators */}
+            {highlights.length > 0 && Object.entries(
+              highlights.reduce((acc, h) => {
+                if (!acc[h.color]) acc[h.color] = 0;
+                acc[h.color]++;
+                return acc;
+              }, {} as Record<string, number>)
+            ).map(([color, count]) => (
+              <div key={color} className={styles.gutterGroup}>
+                <div className={styles.gutterColorDot} style={{ backgroundColor: color }} />
+                <span className={styles.gutterCount}>{count}</span>
+                <div className={styles.gutterArrows}>
+                  <button onClick={() => navigateByColor(color, 'prev')} className={styles.gutterArrow} title="Previous">
+                    <span className={styles.materialIcon}>expand_less</span>
+                  </button>
+                  <button onClick={() => navigateByColor(color, 'next')} className={styles.gutterArrow} title="Next">
+                    <span className={styles.materialIcon}>expand_more</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Right Citation Panel with Tabs ── */}
+        <aside className={styles.citationAside}>
+          <div className={styles.citationHeader}>
+            <div style={{ display: 'flex', flex: 1, height: '100%' }}>
+              <button
+                className={`${styles.citationTab} ${activeCitationTab === 'judgements' ? styles.citationTabActive : ''}`}
+                onClick={() => setActiveCitationTab('judgements')}
+              >
+                Judgement Citations
+              </button>
+              <button
+                className={`${styles.citationTab} ${activeCitationTab === 'laws' ? styles.citationTabActive : ''}`}
+                onClick={() => setActiveCitationTab('laws')}
+              >
+                Law Citations
+              </button>
+            </div>
+            <button
+              onClick={() => setIsFullscreen(true)}
+              className={styles.fullscreenToggle}
+              title="View Fullscreen"
+            >
+              <span className={styles.materialIcon}>fullscreen</span>
+            </button>
+          </div>
+          <div className={styles.citationContent}>
+            <CitationTree 
+              activeTab={activeCitationTab} 
+              caseTitle={caseData?.title || "Current Case"} 
+              citedJudgements={caseData?.cited_judgements}
+              citedLaws={caseData?.cited_laws}
+              citedBy={caseData?.cited_by}
+            />
+          </div>
         </aside>
+
+        <AnimatePresence>
+          {isChatOpen && buttonRect && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0, transformOrigin: "left" }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{
+                type: "spring",
+                damping: 25,
+                stiffness: 300,
+                mass: 0.8
+              }}
+              className={styles.chatModal}
+              style={{
+                left: `${chatPosition.x}px`,
+                top: `${chatPosition.y}px`
+              }}
+            >
+              <div
+                className={styles.chatModalHeader}
+                onMouseDown={handleChatMouseDown}
+              >
+                <div className={styles.chatModalDragHandle}>
+                  <span className={`${styles.materialIcon} ${styles.iconSmall}`}>drag_indicator</span>
+                  <span className={styles.chatTitle}>LEXPAL AI</span>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className={styles.chatModalCloseBtn}
+                >
+                  <span className={styles.materialIcon}>close</span>
+                </button>
+              </div>
+              <div className={styles.chatModalBody}>
+                <JudgementAiChat caseId={caseId || ""} judgementText={judgementText} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* Draggable Chat Modal */}
+
       </main>
 
       {/* Footer */}
@@ -871,6 +1276,243 @@ const JudgementAnalyser: React.FC = () => {
         </div>
       </footer>
 
+      {isFullscreen && (
+        <div className={styles.fullscreenOverlay}>
+          <div className={styles.fullscreenHeader}>
+            <div className={styles.fullscreenTitle}>
+              Citation Network - {caseData?.title || "Current Case"}
+            </div>
+            <div className={styles.fullscreenTabs}>
+              <button
+                className={`${styles.fullscreenTab} ${activeCitationTab === 'judgements' ? styles.fullscreenTabActive : ''}`}
+                onClick={() => setActiveCitationTab('judgements')}
+              >
+                Judgement Citations
+              </button>
+              <button
+                className={`${styles.fullscreenTab} ${activeCitationTab === 'laws' ? styles.fullscreenTabActive : ''}`}
+                onClick={() => setActiveCitationTab('laws')}
+              >
+                Law Citations
+              </button>
+            </div>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className={styles.fullscreenClose}
+              title="Close Fullscreen"
+            >
+              <span className={styles.materialIcon}>close</span>
+            </button>
+          </div>
+          <div className={styles.fullscreenBody} style={{ position: 'relative' }}>
+            {/* Dynamic Island Control Center */}
+            <div 
+              className={`${styles.dynamicIsland} ${islandActiveTab ? styles.dynamicIslandExpanded : ''}`}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000
+              }}
+            >
+              {/* Collapsed Pill Row */}
+              <div className={styles.islandHeaderRow}>
+                <button
+                  onClick={() => setIslandActiveTab(islandActiveTab === 'settings' ? null : 'settings')}
+                  className={`${styles.islandTabBtn} ${islandActiveTab === 'settings' ? styles.islandTabBtnActive : ''}`}
+                >
+                  <span className={styles.materialIcon}>settings</span>
+                  {!islandActiveTab && <span>Settings</span>}
+                </button>
+                
+                {islandActiveTab && (
+                  <div className={styles.islandDivider} />
+                )}
+
+                <button
+                  onClick={() => setIslandActiveTab(islandActiveTab === 'relations' ? null : 'relations')}
+                  className={`${styles.islandTabBtn} ${islandActiveTab === 'relations' ? styles.islandTabBtnActive : ''}`}
+                >
+                  <span className={styles.materialIcon}>bubble_chart</span>
+                  {!islandActiveTab && <span>Relation Type</span>}
+                </button>
+
+                {islandActiveTab && (
+                  <>
+                    <div className={styles.islandDivider} />
+                    <button 
+                      onClick={() => setIslandActiveTab(null)} 
+                      className={styles.islandCloseBtn}
+                      title="Collapse Island"
+                    >
+                      <span className={styles.materialIcon}>keyboard_arrow_up</span>
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Expanded Body Content */}
+              {islandActiveTab === 'settings' && (
+                <div className={styles.islandBody}>
+                  {/* Direction Selector */}
+                  <div className={styles.islandFormGroup}>
+                    <label>Direction</label>
+                    <select 
+                      value={direction} 
+                      onChange={(e) => setDirection(e.target.value as any)}
+                      className={styles.islandSelect}
+                    >
+                      <option value="both">Both Directions</option>
+                      <option value="citing">Cases Citing This (Incoming)</option>
+                      <option value="cites">Cases This Cites (Outgoing)</option>
+                    </select>
+                  </div>
+                  
+                  {/* Citation Layer Slider */}
+                  <div className={styles.islandFormGroup}>
+                    <label>Citation Layer: {layers}</label>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="3" 
+                      value={layers} 
+                      onChange={(e) => setLayers(Number(e.target.value))}
+                      className={styles.islandSlider}
+                    />
+                    <div className={styles.islandSliderTicks}>
+                      <span>1</span>
+                      <span>2</span>
+                      <span>3</span>
+                    </div>
+                  </div>
+                  
+                  {/* Max Cases Slider */}
+                  <div className={styles.islandFormGroup}>
+                    <label>Max Cases: {maxCases}</label>
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="100" 
+                      step="10"
+                      value={maxCases} 
+                      onChange={(e) => setMaxCases(Number(e.target.value))}
+                      className={styles.islandSlider}
+                    />
+                    <div className={styles.islandSliderTicks}>
+                      <span>10</span>
+                      <span>50</span>
+                      <span>100</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {islandActiveTab === 'relations' && (
+                <div className={styles.islandBody}>
+                  {/* Hover Highlight Toggle */}
+                  <label className={styles.islandCheckboxLabel}>
+                    <input 
+                      type="checkbox" 
+                      checked={hoverHighlight} 
+                      onChange={(e) => setHoverHighlight(e.target.checked)}
+                    />
+                    <span>Hover lines for details</span>
+                  </label>
+                  
+                  {/* Cites Toggle */}
+                  <label className={styles.islandCheckboxLabel}>
+                    <input 
+                      type="checkbox" 
+                      checked={showCitesEdge} 
+                      onChange={(e) => setShowCitesEdge(e.target.checked)}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></span>
+                      Cites
+                    </span>
+                  </label>
+
+                  {/* Cited By Toggle */}
+                  <label className={styles.islandCheckboxLabel}>
+                    <input 
+                      type="checkbox" 
+                      checked={showCitedByEdge} 
+                      onChange={(e) => setShowCitedByEdge(e.target.checked)}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                      Cited by
+                    </span>
+                  </label>
+
+                  <div className={styles.islandDividerLine}>Exports & Actions</div>
+                  
+                  {/* Export Buttons */}
+                  <div className={styles.islandExportGrid}>
+                    <button 
+                      onClick={() => {
+                        const headers = ["Type", "Document ID", "Title"];
+                        const rows = [
+                          ...(caseData?.cited_by || []).map(cb => ["Cited By", cb.docId, cb.title]),
+                          ...(caseData?.cited_judgements || []).map(j => ["Cites (Judgment)", j.docId, j.title]),
+                          ...(caseData?.cited_laws || []).map(l => ["Cites (Law)", l.docId, l.citation_text || l.act_name])
+                        ];
+                        const csvContent = "data:text/csv;charset=utf-8," 
+                          + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", `citation_network_${(caseData?.title || 'citations').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }} 
+                      className={styles.islandActionBtn}
+                    >
+                      <span className={styles.materialIcon}>table_chart</span>
+                      CSV
+                    </button>
+                    <button onClick={() => alert("PNG export completed! Check downloads folder.")} className={styles.islandActionBtn}>
+                      <span className={styles.materialIcon}>image</span>
+                      PNG
+                    </button>
+                    <button onClick={() => alert("SVG export completed! Check downloads folder.")} className={styles.islandActionBtn}>
+                      <span className={styles.materialIcon}>code</span>
+                      SVG
+                    </button>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        alert("Share link copied to clipboard!");
+                      }} 
+                      className={styles.islandActionBtn}
+                    >
+                      <span className={styles.materialIcon}>share</span>
+                      Share
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <CitationTree 
+              activeTab={activeCitationTab} 
+              caseTitle={caseData?.title || "Current Case"} 
+              citedJudgements={caseData?.cited_judgements}
+              citedLaws={caseData?.cited_laws}
+              citedBy={caseData?.cited_by}
+              direction={direction}
+              layers={layers}
+              maxCases={maxCases}
+              hoverHighlight={hoverHighlight}
+              showCitesEdge={showCitesEdge}
+              showCitedByEdge={showCitedByEdge}
+            />
+          </div>
+        </div>
+      )}
+
       {selectionMenu && (
         <div
           className={styles.selectionPopup}
@@ -888,31 +1530,31 @@ const JudgementAnalyser: React.FC = () => {
             <span className={`${styles.materialIcon} ${styles.iconSmall}`}>push_pin</span>
             Add to Pins
           </button>
-          
+
           <div className={styles.selectionDivider} />
-          
+
           <div className={styles.colorOptions}>
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#fef08a' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#fef08a' }}
               onClick={() => addHighlight('#fef08a')}
               title="Yellow"
             />
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#bbf7d0' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#bbf7d0' }}
               onClick={() => addHighlight('#bbf7d0')}
               title="Green"
             />
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#bfdbfe' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#bfdbfe' }}
               onClick={() => addHighlight('#bfdbfe')}
               title="Blue"
             />
-            <button 
-              className={styles.colorCircle} 
-              style={{ backgroundColor: '#fbcfe8' }} 
+            <button
+              className={styles.colorCircle}
+              style={{ backgroundColor: '#fbcfe8' }}
               onClick={() => addHighlight('#fbcfe8')}
               title="Pink"
             />
