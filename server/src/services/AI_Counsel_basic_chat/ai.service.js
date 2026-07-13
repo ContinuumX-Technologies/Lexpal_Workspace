@@ -23,17 +23,45 @@ export async function generateAIResponse(userQuery) {
 
     const metadata = await extractLawMetadata(userQuery);
 
-    const where = {};
+    const filters = Object.entries(metadata)
 
-    Object.entries(metadata).forEach(([k, v]) => {
-      if (v) where[k] = v;
-    });
+      .filter(([, value]) => value != null && value !== "")
+
+      .map(([key, value]) => ({
+
+        [key]: value,
+
+      }));
+
+    let where;
+
+    if (filters.length === 0) {
+
+      where = undefined;
+
+    } else if (filters.length === 1) {
+
+      where = filters[0];
+
+    } else {
+
+      where = {
+
+        $and: filters,
+
+      };
+
+    }
 
     // Vanilla Chroma query
     const results = await collection.query({
+
       queryTexts: [userQuery],
+
       nResults: 5,
-      where: Object.keys(where).length ? where : undefined,
+
+      where,
+
     });
 
     const chunks =

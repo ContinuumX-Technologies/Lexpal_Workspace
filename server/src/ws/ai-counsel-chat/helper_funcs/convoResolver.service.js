@@ -1,4 +1,5 @@
 import AI_Counsel_Convo from "../../../models/AI_Counsel_Convo.model.ts";
+import mongoose from "mongoose";
 
 
 
@@ -9,25 +10,22 @@ import AI_Counsel_Convo from "../../../models/AI_Counsel_Convo.model.ts";
  
  */
 export default async function resolveConversation({
-  convoId
-  // userId,
+  convoId,
+  userId,
 }) {
-  // ─────────────────────────────────────
-  // CASE 1: Existing conversation requested
-  // ─────────────────────────────────────
-  
-    const convo = await AI_Counsel_Convo.findById(convoId);
+  if (!convoId || !mongoose.isValidObjectId(convoId)) {
+    throw new Error("Conversation not found");
+  }
 
-    if (!convo) {
-      throw new Error("Conversation not found");
-    }
+  const convo = await AI_Counsel_Convo.findById(convoId);
 
-    // if (convo.user_id.toString() !== userId) {
-    //   throw new Error("Unauthorized conversation access");
-    // }
+  if (!convo) {
+    throw new Error("Conversation not found");
+  }
 
-    return convo;
-  
+  if (!userId || !convo.user_id || convo.user_id.toString() !== userId) {
+    throw new Error("Unauthorized conversation access");
+  }
 
-
+  return convo;
 }

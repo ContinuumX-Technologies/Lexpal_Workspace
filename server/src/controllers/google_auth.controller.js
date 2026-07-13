@@ -62,6 +62,8 @@ export const GoogleAuth = async (req, res) => {
                 profile_picture: picture,
                 email_verified
             });
+
+            console.log("Created:", user);
         }
 
         // Existing email/password account -> link Google

@@ -7,7 +7,7 @@
     color: #1d1d1f;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
     font-size: 13.5px;
     flex-shrink: 0;

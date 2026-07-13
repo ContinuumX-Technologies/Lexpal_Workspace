@@ -15,10 +15,6 @@ import MainChatSection from "./MainChatSection";
 
 function SidebarWrapper() {
     const { isSidebarOpen, sidebarWidth, setSidebarWidth } = useSidebar();
-
-
-    
-
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -53,21 +49,22 @@ function SidebarWrapper() {
 
 
 
-
+    
     // const handleNewChat = () => {
     //     router.push("/Lex-AI/new");
     // };
 
 
-
-
     return (
+
         <div
-            className={styles.sidebarContainer}
-            style={{ width: isSidebarOpen ? sidebarWidth : 60, transition: "width 0.3s ease" }}
-            ref={sidebarRef}
+        className={styles.sidebarContainer}
+        style={{ width: isSidebarOpen ? sidebarWidth : 0, transition: "width 0.3s ease" }}
+        ref={sidebarRef}
         >
+
             <Sidebar  />
+
             {/* sidebar prop className={styles.sidebarInstance}*/}
             {/* Draggable Handle - Only when Open */}
             {isSidebarOpen && (
@@ -75,9 +72,15 @@ function SidebarWrapper() {
                     <div className={styles.resizeLine} />
                 </div>
             )}
+
         </div>
+
     );
 }
+
+
+
+
 
 
 
@@ -86,12 +89,19 @@ export default function LawSearch() {
     return (
         <SidebarProvider>
             <LawSearchAttachmentsProvider>
+
+
                 <div className={styles.layoutRoot}>
+
                     <SidebarWrapper />
+
                     <div className={styles.mainContent}>
                         <MainChatSection/>
                     </div>
+
                 </div>
+
+
             </LawSearchAttachmentsProvider>
         </SidebarProvider>
     );

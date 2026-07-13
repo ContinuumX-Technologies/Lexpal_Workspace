@@ -5,6 +5,7 @@ import JDSearchRouter from "./routes/JDSearch.routes";
 import firmPrecedentRoutes from "./routes/firmPrecedent.routes";
 import authRoutes from "./routes/auth.routes.js";
 import enrichmentSearchRouter from "./routes/enrichmentSearch.routes";
+import aiCounselRoutes from "./routes/aiCounsel.routes";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use("/api/documents", documentRoutes);
 app.use("/api/judgements", JDSearchRouter);
 app.use("/api/judgement-enrichment", enrichmentSearchRouter);
 app.use("/api/firm-precedents", firmPrecedentRoutes);
+app.use("/api/ai-counsel", aiCounselRoutes);
 
 
 export default app;

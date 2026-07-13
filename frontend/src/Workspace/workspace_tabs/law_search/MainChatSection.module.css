@@ -14,16 +14,12 @@
 
   /* Layout */
   --max-width: 768px;
-  /* ChatGPT standard width */
   --header-height: 0px;
-  /* Minimal/No header usage in main view usually */
 }
 
 :global(.dark) {
   --bg-primary: #212121;
-  /* Main chat background */
   --bg-secondary: #171717;
-  /* Sidebar match if needed */
   --text-primary: #ececec;
   --text-secondary: #b4b4b4;
   --bubble-user: #2f2f2f;
@@ -36,14 +32,11 @@
 .root {
   display: flex;
   flex-direction: column;
-  /* Changed to column since Layout handles row */
   height: 100%;
-  /* Fill parent */
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   overflow: hidden;
-  /* Keep hidden here, let chatArea scroll */
 }
 
 .main {
@@ -63,7 +56,6 @@
   height: 100%;
   position: relative;
   overflow: hidden;
-  /* Ensure it stays within bounds */
 }
 
 /* Header - Liquid Glass Style */
@@ -166,8 +158,7 @@
   flex: 1;
   overflow-y: auto;
   padding-top: 20px;
-  padding-bottom: 120px;
-  /* Space for input */
+  padding-bottom: 300px;
   display: flex;
   flex-direction: column;
   scroll-behavior: smooth;
@@ -182,7 +173,6 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  /* Loose spacing */
 }
 
 /* Common Message Style */
@@ -195,43 +185,55 @@
 }
 
 /* User Message */
-/* User Message Wrapper (Layout & Hover Target) */
-/* User Message Wrapper (Layout & Hover Target) */
 .userMessageWrapper {
   align-self: flex-end;
   width: 100%;
-  /* Full width for hover area */
   position: relative;
   display: flex;
   flex-direction: column;
-  /* align-items: flex-end; <-- Removed, let Group handle it */
 }
 
-/* Inner Anchor Group */
 .userContentGroup {
   margin-left: auto;
-  /* Align Right */
   width: fit-content;
   max-width: 70%;
   position: relative;
-  /* Anchor for icons */
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-/* The visual bubble */
+.userAttachmentChips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.userAttachmentChip {
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+}
+
+:global(.dark) .userAttachmentChip {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+
 .userMessageBubble {
   background-color: var(--bubble-user);
   color: var(--text-user);
   padding: 10px 20px;
   border-radius: 24px;
-  /* max-width removed here, moved to group */
   width: 100%;
   word-wrap: break-word;
 }
 
-/* Full width container when editing */
 .userMessageEditing {
   align-self: flex-start;
   width: 100%;
@@ -244,15 +246,11 @@
 }
 
 .userMsgActions {
-  /* Position below bubble, in flow */
   margin-top: 8px;
   display: flex;
-
-
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-  /* Prevent wrapping */
   opacity: 0;
   transition: opacity 0.2s ease-in-out;
   pointer-events: none;
@@ -267,7 +265,6 @@
   background-color: transparent;
   border: none;
   border-radius: 6px;
-  /* Rounded rect, not circle */
   width: 26px;
   height: 26px;
   display: flex;
@@ -275,25 +272,20 @@
   justify-content: center;
   cursor: pointer;
   color: #b4b4b4;
-  /* Subtle grey */
   transition: all 0.2s;
 }
 
 .userActionBtn:hover {
   background-color: #424242;
-  /* Darker grey hover */
   color: #ffffff;
 }
-
 
 /* AI Message */
 .aiMessage {
   align-self: flex-start;
   background: transparent;
-  /* No bubble for AI */
   color: var(--text-primary);
   padding: 0;
-  /* No padding */
   max-width: 100%;
 }
 
@@ -320,7 +312,6 @@
 
 :global(.dark) .markdownContent pre {
   background-color: #2f2f2f;
-  /* Lighter dark for code blocks in dark mode */
 }
 
 .markdownContent code {
@@ -335,7 +326,7 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Input Area "Island" - Using ChatInput component, just positioning here */
+/* Input Area "Island" */
 .inputArea {
   position: absolute;
   bottom: 0;
@@ -343,11 +334,39 @@
   right: 0;
   padding: 0 0 24px 0;
   background: linear-gradient(to top, var(--bg-primary) 40%, transparent 100%);
-  z-index: 60;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  transition: all 0.4s ease; /* Smooth transition between states */
+}
+
+/* Centered Input Area State */
+.inputAreaCentered {
+ height: 100%;
+  top: 0;
+  bottom: auto;
+  justify-content: center;
+  background: transparent;
+  padding-bottom: 0;
+}
+
+.welcomeMessage {
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Reasoning Mode Depth Selector Bar */
@@ -432,19 +451,15 @@
   font-size: 13px;
 }
 
-/* Action Toolbar (Copy, Like etc) */
+/* Action Toolbar */
 .actionToolbar {
   display: flex;
   align-items: center;
   gap: 4px;
-  /* Tighter gap */
   margin-top: 8px;
   opacity: 1;
-  /* Always visible */
   transition: opacity 0.2s;
 }
-
-/* Removed hover logic since it is always visible */
 
 .actionToolbarBtn {
   background: transparent;
@@ -452,7 +467,6 @@
   cursor: pointer;
   color: var(--text-secondary);
   padding: 4px;
-  /* Smaller padding */
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -461,7 +475,6 @@
 
 .actionToolbarBtn span {
   font-size: 18px;
-  /* Smaller icons */
 }
 
 .actionToolbarBtn:hover {
@@ -509,25 +522,10 @@
 }
 
 @keyframes fadeInOut {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -10px);
-  }
-
-  10% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-
-  90% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -10px);
-  }
+  0% { opacity: 0; transform: translate(-50%, -10px); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  90% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -10px); }
 }
 
 /* Action Menu Popover */
@@ -577,7 +575,6 @@
   content: attr(data-tooltip);
   position: absolute;
   bottom: -30px;
-  /* Adjusted for smaller size */
   left: 50%;
   transform: translateX(-50%);
   background-color: #000;
@@ -599,7 +596,6 @@
   opacity: 1;
 }
 
-/* Fix header tooltips being covered by sidebar */
 .header [data-tooltip]::after {
   left: 0;
   transform: none;
@@ -611,12 +607,9 @@
 }
 
 /* Edit Message UI */
-/* Edit Message UI */
 .editContainer {
   background-color: #f4f4f4;
-  /* Light mode default */
   border-radius: 24px;
-  /* Match message bubble radius */
   padding: 16px;
   margin-top: 5px;
   width: 100%;
@@ -632,11 +625,9 @@
   width: 100%;
   min-height: 24px;
   max-height: 180px;
-  /* Increased to ~7 lines */
   background-color: transparent;
   border: none;
   color: #0d0d0d;
-  /* Light mode text */
   font-family: inherit;
   font-size: 16px;
   line-height: 1.6;
@@ -645,7 +636,6 @@
   padding: 0;
   margin-bottom: 16px;
   overflow-y: auto;
-  /* Enable scroll if height exceeds max */
 }
 
 :global(.dark) .editTextarea {
@@ -662,7 +652,6 @@
 .cancelBtn {
   padding: 8px 20px;
   border-radius: 24px;
-  /* Pill shape */
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -684,15 +673,12 @@
   opacity: 0.8;
 }
 
-
 /* Version Controller */
 .versionController {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* Increased spacing between arrows and text */
   margin-left: 8px;
-  /* Increased spacing from action buttons */
   color: #b4b4b4;
   font-size: 13px;
   font-weight: 500;
@@ -720,7 +706,6 @@
   cursor: default;
 }
 
-/* Mobile Responsiveness */
 .versionText {
   min-width: 24px;
   text-align: center;
@@ -728,59 +713,44 @@
 }
 
 @media (max-width: 768px) {
-
-  /* Adjust container padding */
   .chatArea {
     padding-top: 10px;
-    padding-bottom: 100px;
-    /* Slightly less space needed */
+    padding-bottom: 250px;
   }
 
   .messageWrapper {
     padding: 0 16px;
-    /* Tighter side margins */
     gap: 16px;
-    /* Reduce gap between messages */
   }
 
-  /* Increase bubble width utilization */
   .userMessageBubble,
   .userContentGroup {
     max-width: 90%;
-    /* Use more screen real estate */
   }
 
-  /* User Actions: Always visible on touch devices */
   .userMsgActions {
     opacity: 1;
-    /* Force visible */
     pointer-events: auto;
     margin-top: 6px;
-    /* Ensure gap is consistent */
   }
 
   .userActionBtn {
-    /* Ensure touch targets are reasonable */
     width: 32px;
     height: 32px;
   }
 
-  /* Input Area adjustments */
   .inputArea {
     padding-bottom: 16px;
   }
 
-  /* Edit container optimization */
   .editContainer {
     padding: 12px;
   }
 
   .editTextarea {
     font-size: 15px;
-    /* Prevent zoom on iOS input focus if needed, usually >16px is safer but 15 is standard text */
   }
 
-  /* Header adjustments */
   .header {
     height: 44px;
     padding: 0 8px;

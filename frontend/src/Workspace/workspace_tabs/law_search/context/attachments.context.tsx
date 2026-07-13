@@ -20,6 +20,7 @@ export type AttachmentParseStatus =
 export type SelectedAttachment = {
     id: string;
     file_name: string;
+    mime_type: string;
     size: number;
     parse_status: AttachmentParseStatus;
     text_content: string;
@@ -43,6 +44,13 @@ export type ContextAttachment = {
     text_content: string;
 };
 
+export type AttachmentMetadataPayload = {
+    id: string;
+    file_name: string;
+    size: number;
+    mime_type: string;
+};
+
 export type OutboundContextObject = {
     chat_history: ChatHistoryMessage[];
     attachments: ContextAttachment[];
@@ -54,6 +62,7 @@ type BuildPayloadResult =
           context: OutboundContextObject;
           attachmentIds: string[];
           attachedContextPreview: AttachedContextPreview[];
+          attachmentMetadata: AttachmentMetadataPayload[];
       }
     | {
           ok: false;
@@ -181,6 +190,7 @@ export function LawSearchAttachmentsProvider({
             {
                 id: fileMeta.id,
                 file_name: fileMeta.name,
+                mime_type: fileMeta.type,
                 size: fileMeta.size,
                 parse_status: "parsing",
                 text_content: "",
@@ -294,6 +304,14 @@ export function LawSearchAttachmentsProvider({
             (item) => item.id
         );
 
+        const attachmentMetadata: AttachmentMetadataPayload[] =
+            readyAttachments.map((item) => ({
+                id: item.id,
+                file_name: item.file_name,
+                size: item.size,
+                mime_type: item.mime_type,
+            }));
+
         const attachedContextPreview: AttachedContextPreview[] =
             readyAttachments.map((item) => ({
                 id: item.id,
@@ -309,6 +327,7 @@ export function LawSearchAttachmentsProvider({
             },
             attachmentIds,
             attachedContextPreview,
+            attachmentMetadata,
         };
     };
 

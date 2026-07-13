@@ -29,9 +29,7 @@ export default function ChatInput({
     onToggleChatMode,
 }: ChatInputProps) {
     const [input, setInput] = useState("");
-
     const [isPickerOpen, setIsPickerOpen] = useState(false);
-
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const {
@@ -44,15 +42,21 @@ export default function ChatInput({
 
     const reasoningMode = chatMode === "reasoning_chat";
 
-    const handleKeyDown = (
-        e: React.KeyboardEvent
-    ) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-
             if (isProcessing) return;
-
             handleSend();
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setInput(e.target.value);
+        
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
         }
     };
 
@@ -70,6 +74,9 @@ export default function ChatInput({
             if (sent) {
                 setInput("");
                 setIsPickerOpen(false);
+                if (textareaRef.current) {
+                    textareaRef.current.style.height = 'auto';
+                }
             }
         });
     };
@@ -77,174 +84,139 @@ export default function ChatInput({
     return (
         <div className={styles.container}>
             {isPickerOpen && (
-                <ContextPicker
-                    onClose={() =>
-                        setIsPickerOpen(false)
-                    }
-                />
+                <ContextPicker onClose={() => setIsPickerOpen(false)} />
             )}
 
             <div className={styles.inputWrapper}>
-                {selectedAttachments.length > 0 && (
-                    <div
-                        className={
-                            styles.contextChips
-                        }
-                    >
-                        {selectedAttachments.map(
-                            (ctx) => (
-                                <div
-                                    key={ctx.id}
-                                    className={
-                                        styles.chip
-                                    }
-                                >
-                                    {ctx.parse_status ===
-                                    "parsing" ? (
-                                        <span
-                                            className={
-                                                styles.spinner
-                                            }
-                                        />
+                {/* Refined Spinning Glow Effect */}
+                <div className={styles.glowRing} />
+
+                <div className={styles.contentWrapper}>
+                    {selectedAttachments.length > 0 && (
+                        <div className={styles.contextChips}>
+                            {selectedAttachments.map((ctx) => (
+                                <div key={ctx.id} className={styles.chip}>
+                                    {ctx.parse_status === "parsing" ? (
+                                        <span className={styles.spinner} />
                                     ) : (
                                         <span className="material-symbols-outlined chipIcon">
                                             description
                                         </span>
                                     )}
 
-                                    <span
-                                        className={
-                                            styles.chipName
-                                        }
-                                    >
+                                    <span className={styles.chipName}>
                                         {ctx.file_name}
                                     </span>
 
                                     <span
-                                        className={`${
-                                            styles.chipInfo
-                                        } ${
-                                            ctx.parse_status ===
-                                            "error"
-                                                ? styles.chipError
-                                                : ""
+                                        className={`${styles.chipInfo} ${
+                                            ctx.parse_status === "error" ? styles.chipError : ""
                                         }`}
                                     >
-                                        {ctx.parse_status ===
-                                        "error"
+                                        {ctx.parse_status === "error"
                                             ? "Parse failed"
-                                            : ctx.parse_status ===
-                                              "parsing"
+                                            : ctx.parse_status === "parsing"
                                             ? "Parsing..."
-                                            : formatFileSize(
-                                                  ctx.size
-                                              )}
+                                            : formatFileSize(ctx.size)}
                                     </span>
 
                                     <button
-                                        onClick={() =>
-                                            removeSelectedAttachment(
-                                                ctx.id
-                                            )
-                                        }
-                                        className={
-                                            styles.removeChip
-                                        }
+                                        onClick={() => removeSelectedAttachment(ctx.id)}
+                                        className={styles.removeChip}
                                     >
-                                        <span className="material-symbols-outlined">
-                                            close
-                                        </span>
+                                        <span className="material-symbols-outlined">close</span>
                                     </button>
                                 </div>
-                            )
-                        )}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
 
-                {attachmentError && (
-                    <div className={styles.attachmentError}>
-                        {attachmentError}
-                    </div>
-                )}
-
-                <div className={styles.inputRow}>
-                    <button
-                        className={styles.attachBtn}
-                        onClick={() => {
-                            clearAttachmentError();
-                            setIsPickerOpen(
-                                !isPickerOpen
-                            );
-                        }}
-                        title="Attach File"
-                        disabled={isProcessing}
-                    >
-                        <span className="material-symbols-outlined">
-                            attach_file
-                        </span>
-                    </button>
+                    {attachmentError && (
+                        <div className={styles.attachmentError}>
+                            {attachmentError}
+                        </div>
+                    )}
 
                     <textarea
                         ref={textareaRef}
                         rows={1}
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
+                        onChange={handleInputChange}
                         onKeyDown={handleKeyDown}
                         placeholder={placeholder || "Ask legal question..."}
                         className={styles.input}
                         disabled={disabled && !isProcessing}
                     />
 
-                    {/* Reasoning Mode Toggle */}
-                    <button
-                        className={`${styles.reasoningBtn} ${
-                            reasoningMode ? styles.reasoningActive : ""
-                        }`}
-                        onClick={onToggleChatMode}
-                        title={reasoningMode ? "Reasoning on — click to disable" : "Enable reasoning mode"}
-                        disabled={isProcessing}
-                    >
-                        <Brain size={15} strokeWidth={reasoningMode ? 2.2 : 1.8} />
-                        <span className={styles.reasoningLabel}>Reasoning</span>
-                    </button>
+                    <div className={styles.actionRow}>
+                        <div className={styles.leftActions}>
+                            <button
+                                className={styles.iconBtn}
+                                onClick={() => {
+                                    clearAttachmentError();
+                                    setIsPickerOpen(!isPickerOpen);
+                                }}
+                                title="Attach File"
+                                disabled={isProcessing}
+                            >
+                                <span className="material-symbols-outlined">attach_file</span>
+                            </button>
 
-                    {isProcessing ? (
-                        <button
-                            className={styles.stopBtn}
-                            onClick={onStop}
-                            title="Stop Generating"
-                        >
-                            <span className="material-symbols-outlined">
-                                stop
-                            </span>
-                        </button>
-                    ) : (
-                        <button
-                            className={styles.sendBtn}
-                            onClick={handleSend}
-                            disabled={
-                                disabled ||
-                                !input.trim() ||
-                                !canSendWithAttachments
-                            }
-                            title={
-                                canSendWithAttachments
-                                    ? "Send"
-                                    : "Wait for attachments to finish parsing or remove failed files"
-                            }
-                        >
-                            <span className="material-symbols-outlined">
-                                arrow_upward
-                            </span>
-                        </button>
-                    )}
+                            <button
+                                className={styles.iconBtn}
+                                title="Search the Web"
+                                disabled={isProcessing}
+                            >
+                                {/* Subtle and classy web search icon */}
+                                <span className="material-symbols-outlined">language</span>
+                            </button>
+                        </div>
+
+                        <div className={styles.rightActions}>
+                            <button
+                                className={`${styles.reasoningBtn} ${
+                                    reasoningMode ? styles.reasoningActive : ""
+                                }`}
+                                onClick={onToggleChatMode}
+                                title={reasoningMode ? "Reasoning on — click to disable" : "Enable reasoning mode"}
+                                disabled={isProcessing}
+                            >
+                                <Brain size={16} strokeWidth={reasoningMode ? 2.2 : 1.8} />
+                            </button>
+
+                            {isProcessing ? (
+                                <button
+                                    className={styles.stopBtn}
+                                    onClick={onStop}
+                                    title="Stop Generating"
+                                >
+                                    <span className="material-symbols-outlined">stop</span>
+                                </button>
+                            ) : (
+                                <button
+                                    className={styles.sendBtn}
+                                    onClick={handleSend}
+                                    disabled={
+                                        disabled ||
+                                        !input.trim() ||
+                                        !canSendWithAttachments
+                                    }
+                                    title={
+                                        canSendWithAttachments
+                                            ? "Send"
+                                            : "Wait for attachments to finish parsing or remove failed files"
+                                    }
+                                >
+                                    <span className="material-symbols-outlined">arrow_upward</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div className={styles.footerNote}>
-                Lexpal AI can make mistakes.
-                Please verify important
-                information.
+                Lexpal AI can make mistakes. Please verify important information.
             </div>
         </div>
     );

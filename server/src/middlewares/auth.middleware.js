@@ -1,37 +1,16 @@
-import jwt from "jsonwebtoken";
-
+import { authenticateRequest } from "../utils/authToken.util.js";
 
 const protectRoute = async (req, res, next) => {
-    try {
+  const auth = authenticateRequest(req);
 
-        let token;
+  if (!auth) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
 
-        if (req.cookies && req.cookies.jwt) {
-            token = req.cookies.jwt;
-        } else if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-            token = req.headers.authorization.split(" ")[1];
-        }
+  req.user = { id: auth.id };
+  req.client_data = auth.payload;
 
-        if (!token) {
-            return res.status(401).json({ messsage: "Unauthorized access - No token provided" });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        if (!decoded) {
-            return res.status(401).json({ message: "Uauthorized access - invalid token - please login" });
-        }
-
-        req.client_data = decoded;
-
-        next();
-
-
-    } catch (error) {
-        console.log("⚠️ error in protectRoute middleware:" + error);
-        res.status(500).json({ message: "Interenal server error" });
-
-    }
-}
+  return next();
+};
 
 export default protectRoute;

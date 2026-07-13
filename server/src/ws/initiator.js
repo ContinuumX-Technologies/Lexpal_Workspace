@@ -1,5 +1,6 @@
 import { WebSocketServer } from "ws";
 import AICounselChatGateway from "./ai-counsel-chat/AICounselChat.gateway.js";
+import { authenticateWebSocketRequest } from "./ai-counsel-chat/helper_funcs/wsAuth.service.js";
 
 
 export default function initWebSocketServer(server) {
@@ -9,6 +10,16 @@ export default function initWebSocketServer(server) {
   server.on("upgrade", (req, socket, head) => {
     
     if (req.url.startsWith("/ws/ai-counsel-chat")) {
+      const wsAuth = authenticateWebSocketRequest(req);
+
+      if (!wsAuth) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      req.wsAuth = wsAuth;
+
       AICounselwss.handleUpgrade(req, socket, head, (ws) => {
         AICounselwss.emit("connection", ws, req);
       });
