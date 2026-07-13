@@ -6,7 +6,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import * as zlib from "zlib";
 import { getOrCreateChromaCollection } from "../infra/chroma.client";
-import { getEmbedding, extractSearchFilters, generateShortTitles } from "../services/AI";
+import { getEmbedding, extractSearchFilters, generateShortTitles, generateJudgmentSummary } from "../services/AI";
 import { searchEnrichmentMetadata } from "../search/enrichmentSearch.service";
 import { ENRICHMENT_INDEX, elasticsearchRequest } from "../infra/elasticsearch.client";
 import { tokenize, normalizeText } from '../utils/normalizer.util';
@@ -795,6 +795,73 @@ function buildFuzzyTitleQuery(rawQuery: string) {
     };
 }
 
+const summariesInProgress = new Set<string>();
+
+function extractTextsFromHtml(html: string): { type: string, content: string }[] {
+    const $ = cheerio.load(html);
+    const texts: { type: string, content: string }[] = [];
+    const judgmentsDiv = $('.judgments');
+    if (judgmentsDiv.length > 0) {
+        judgmentsDiv.find('p, div[id^="p_"]').each((_, el) => {
+            const text = $(el).text().trim();
+            if (text) {
+                const type = $(el).attr('data-structure') || 'text';
+                texts.push({ type, content: text });
+            }
+        });
+    }
+
+    if (texts.length === 0) {
+        $('p').each((_, el) => {
+            const text = $(el).text().trim();
+            if (text) {
+                texts.push({ type: 'text', content: text });
+            }
+        });
+    }
+    return texts;
+}
+
+async function generateAndSaveSummaryInBackground(
+    id: any,
+    texts: any[],
+    date: string | undefined,
+    docIdStr: string,
+    saveTextsToDb: boolean
+) {
+    const url = process.env.MONGO_CONNECTION_URL;
+    if (!url) {
+        console.error(`[ON-DEMAND SUMMARY] MONGO_CONNECTION_URL not configured, skipping doc ID: ${docIdStr}`);
+        summariesInProgress.delete(docIdStr);
+        return;
+    }
+
+    const backgroundClient = new MongoClient(url);
+    try {
+        console.log(`[ON-DEMAND SUMMARY] Starting generation for doc ID: ${docIdStr}`);
+        const summary = await generateJudgmentSummary(texts, date);
+        
+        await backgroundClient.connect();
+        const db = backgroundClient.db("Lexpal_Workspace");
+        const collection = db.collection("supreme_court_judgements");
+
+        const updateFields: any = { summary };
+        if (saveTextsToDb) {
+            updateFields.texts = texts;
+        }
+        await collection.updateOne(
+            { _id: id },
+            { $set: updateFields }
+        );
+        console.log(`[ON-DEMAND SUMMARY] Successfully saved summary for doc ID: ${docIdStr}`);
+    } catch (err: any) {
+        console.error(`[ON-DEMAND SUMMARY] Failed to generate summary for doc ID: ${docIdStr}:`, err.message);
+    } finally {
+        await backgroundClient.close();
+        summariesInProgress.delete(docIdStr);
+    }
+}
+
 export const getJudgementById = async (req: Request, res: Response): Promise<void> => {
     const url = process.env.MONGO_CONNECTION_URL;
     if (!url) {
@@ -860,6 +927,22 @@ export const getJudgementById = async (req: Request, res: Response): Promise<voi
             if (fs.existsSync(htmlFilePath)) {
                 htmlContent = fs.readFileSync(htmlFilePath, "utf8");
                 htmlSource = "local_disk";
+            }
+        }
+
+        // Trigger on-demand summary generation if summary is missing
+        const docIdStr = String(doc._id);
+        if (!doc.summary && !summariesInProgress.has(docIdStr)) {
+            let texts = doc.texts;
+            let saveTextsToDb = false;
+            if ((!texts || !Array.isArray(texts) || texts.length === 0) && htmlContent) {
+                console.log(`[ON-DEMAND SUMMARY] Extracting texts from htmlContent for doc ID: ${docIdStr}`);
+                texts = extractTextsFromHtml(htmlContent);
+                saveTextsToDb = true;
+            }
+            if (texts && Array.isArray(texts) && texts.length > 0) {
+                summariesInProgress.add(docIdStr);
+                generateAndSaveSummaryInBackground(doc._id, texts, doc.date, docIdStr, saveTextsToDb);
             }
         }
 

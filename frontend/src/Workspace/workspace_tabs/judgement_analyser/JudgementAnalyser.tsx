@@ -123,6 +123,7 @@ const CitationTree: React.FC<{
 }) => {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const reactFlowInstanceRef = useRef<any>(null);
+  const navigate = useNavigate();
 
   // Stable event handlers to avoid re-binding listeners
   const handleNodeMouseEnter = useCallback((_: any, node: any) => {
@@ -137,6 +138,14 @@ const CitationTree: React.FC<{
     reactFlowInstanceRef.current = instance;
     instance.fitView({ padding: 0.2 });
   }, []);
+
+  const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
+    const docId = node.data?.docId;
+    if (docId) {
+      console.log(`[GRAPH CLICK] Loading document with docId: ${docId}`);
+      navigate(`/workspace/${docId}`);
+    }
+  }, [navigate]);
 
   // 1. Calculate Layouted Nodes and Edges once (does not run on mouse hover)
   const layoutedData = useMemo(() => {
@@ -158,39 +167,39 @@ const CitationTree: React.FC<{
       filteredCitedLaws = filteredCitedLaws.slice(0, maxCases);
     }
 
-    const rawNodes: { id: string; label: string; isCitedBy?: boolean; parentId?: string }[] = [
+    const rawNodes: { id: string; label: string; docId?: string; isCitedBy?: boolean; parentId?: string }[] = [
       { id: 'main', label: caseTitle },
     ];
 
     if (activeTab === 'judgements') {
       filteredCitedBy.forEach((cb, idx) => {
         const nodeId = cb.docId ? `cb_${cb.docId}_${idx}` : `cb_${idx}`;
-        rawNodes.push({ id: nodeId, label: cb.title, isCitedBy: true });
+        rawNodes.push({ id: nodeId, label: cb.title, docId: cb.docId, isCitedBy: true });
         
         if (layers >= 2) {
           const l2Id = `cb_l2_${nodeId}`;
-          rawNodes.push({ id: l2Id, label: `Citing Case ${idx + 1}.1`, isCitedBy: true, parentId: nodeId });
+          rawNodes.push({ id: l2Id, label: `Citing Case ${idx + 1}.1`, docId: cb.docId, isCitedBy: true, parentId: nodeId });
           if (layers >= 3) {
-            rawNodes.push({ id: `cb_l3_${nodeId}`, label: `Citing Case ${idx + 1}.1.1`, isCitedBy: true, parentId: l2Id });
+            rawNodes.push({ id: `cb_l3_${nodeId}`, label: `Citing Case ${idx + 1}.1.1`, docId: cb.docId, isCitedBy: true, parentId: l2Id });
           }
         }
       });
       filteredCitedJudgements.forEach((j, idx) => {
         const nodeId = j.docId ? `j_${j.docId}_${idx}` : `j_${idx}`;
-        rawNodes.push({ id: nodeId, label: j.title });
+        rawNodes.push({ id: nodeId, label: j.title, docId: j.docId });
         
         if (layers >= 2) {
           const l2Id = `j_l2_${nodeId}`;
-          rawNodes.push({ id: l2Id, label: `Precedent Case ${idx + 1}.1`, parentId: nodeId });
+          rawNodes.push({ id: l2Id, label: `Precedent Case ${idx + 1}.1`, docId: j.docId, parentId: nodeId });
           if (layers >= 3) {
-            rawNodes.push({ id: `j_l3_${nodeId}`, label: `Precedent Case ${idx + 1}.1.1`, parentId: l2Id });
+            rawNodes.push({ id: `j_l3_${nodeId}`, label: `Precedent Case ${idx + 1}.1.1`, docId: j.docId, parentId: l2Id });
           }
         }
       });
     } else {
       filteredCitedLaws.forEach((l, idx) => {
         const nodeId = l.docId ? `l_${l.docId}_${idx}` : `l_${idx}`;
-        rawNodes.push({ id: nodeId, label: l.citation_text || l.act_name || `Law ${idx + 1}` });
+        rawNodes.push({ id: nodeId, label: l.citation_text || l.act_name || `Law ${idx + 1}`, docId: l.docId });
       });
     }
 
@@ -234,7 +243,7 @@ const CitationTree: React.FC<{
 
         return {
           id: n.id,
-          data: { label: n.label },
+          data: { label: n.label, docId: n.docId },
           sourcePosition: 'right' as any,
           targetPosition: 'left' as any,
           style: {
@@ -267,7 +276,8 @@ const CitationTree: React.FC<{
             lineHeight: '1.3',
             fontFamily: 'inherit',
             opacity: 1,
-            outline: 'none'
+            outline: 'none',
+            cursor: isMain ? 'default' : 'pointer'
           }
         };
       }),
@@ -331,6 +341,7 @@ const CitationTree: React.FC<{
         onInit={onInit}
         onNodeMouseEnter={hoverHighlight ? handleNodeMouseEnter : undefined}
         onNodeMouseLeave={hoverHighlight ? handleNodeMouseLeave : undefined}
+        onNodeClick={onNodeClick}
       >
         <Background gap={16} size={1} color="#e2e8f0" />
         <Controls />
@@ -462,6 +473,9 @@ interface CaseDoc {
   summary?: any;
   htmlContent?: string;
   htmlSource?: string;
+  source?: {
+    docId: string;
+  };
   cited_judgements?: { docId: string; title: string }[];
   cited_laws?: { docId: string; section_no: string; act_name: string; act_year: number | null; citation_text: string }[];
   cited_by?: { docId: string; title: string }[];
@@ -966,8 +980,9 @@ const JudgementAnalyser: React.FC = () => {
       const data = await res.json();
       setCaseData(data);
       console.log(`[VERIFICATION] Judgment Loaded: "${data.title}" | HTML Source: ${data.htmlSource || (data.htmlContent ? "mongodb" : "fallback_text")}`);
-      if (id !== data._id && navigate) {
-        navigate(`/workspace/${data._id}`, { replace: true });
+      const targetUrlId = data.source?.docId || data._id;
+      if (id !== targetUrlId && navigate) {
+        navigate(`/workspace/${targetUrlId}`, { replace: true });
       }
     } catch (err) {
       console.error("Error fetching judgment details:", err);
@@ -1299,7 +1314,7 @@ const JudgementAnalyser: React.FC = () => {
                 </button>
               </div>
               <div className={styles.chatModalBody}>
-                <JudgementAiChat caseId={caseId || ""} judgementText={judgementText} />
+                <JudgementAiChat caseId={caseId || ""} htmlContent={caseData?.htmlContent || ""} />
               </div>
             </motion.div>
           )}

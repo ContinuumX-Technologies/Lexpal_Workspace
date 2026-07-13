@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { PromptInputBox } from "@/components/ui/ai-prompt-box";
+import { PromptInputBox, type ChatMessage } from "@/components/ui/ai-prompt-box";
 import {
   ChatBubble,
   ChatBubbleAvatar,
@@ -17,7 +17,7 @@ interface ChatHistoryItem {
 
 interface Props {
   caseId: string;
-  judgementText: string;
+  htmlContent: string;
 }
 
 const WELCOME_MESSAGE: Message = {
@@ -28,7 +28,7 @@ const WELCOME_MESSAGE: Message = {
   timestamp: new Date().toISOString(),
 };
 
-export default function JudgementAiChat({ caseId, judgementText }: Props) {
+export default function JudgementAiChat({ caseId, htmlContent }: Props) {
   const { updateCase, getMessages } = useAnalysisStore();
   const { addUsage } = useUsageStore();
   const storedMessages = getMessages(caseId);
@@ -61,8 +61,8 @@ export default function JudgementAiChat({ caseId, judgementText }: Props) {
     [storedMessages]
   );
 
-  const handleSend = async (message: string) => {
-    const trimmed = message.trim();
+  const handleSend = async (message: ChatMessage) => {
+    const trimmed = message.input_text.trim();
     if (!trimmed) return;
 
     const thinkingId = crypto.randomUUID();
@@ -92,7 +92,7 @@ export default function JudgementAiChat({ caseId, judgementText }: Props) {
       const response = await fetch("/api/documents/judgement-analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ judgementText, query: trimmed, history }),
+        body: JSON.stringify({ htmlContent, query: trimmed, history }),
       });
       const data = await response.json();
 
