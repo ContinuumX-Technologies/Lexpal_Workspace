@@ -386,7 +386,7 @@ export function JDSearchProvider({ children }: { children: React.ReactNode }) {
 
   // ── Select a judgment → fetch detail ───────────────────────────────────────
   const selectJudgment = useCallback((item: JudgmentListItem) => {
-    navigate(`/workspace/${item.judgement_db_id}`, { state: { item } });
+    navigate(`/workspace/${item.citation || item.judgement_db_id}`, { state: { item } });
   }, [navigate]);
 
   // ── Toggle pin ──────────────────────────────────────────────────────────────
