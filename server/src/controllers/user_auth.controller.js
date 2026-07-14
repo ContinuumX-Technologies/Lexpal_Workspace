@@ -35,7 +35,8 @@ export const UserSignup = async (req, res) => {
             res.cookie("jwt", token, {
                 maxAge: 7 * 24 * 60 * 60 * 1000,
                 httpOnly: true,
-                sameSite: "strict",
+                sameSite: "None",
+                domain: ".lexpal.in",
                 secure: process.env.NODE_ENV != "development"
             });
         }
@@ -75,7 +76,8 @@ export const UserLogin = async (req, res) => {
         res.cookie("jwt", token, {
             maxAge: 7 * 24 * 60 * 60 * 1000,
             httpOnly: true,
-            sameSite: "strict",
+            sameSite: "None",
+                domain: ".lexpal.in",
             secure: process.env.NODE_ENV != "development"
         });
 
