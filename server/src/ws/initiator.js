@@ -11,6 +11,7 @@ export default function initWebSocketServer(server) {
      console.log("Upgrade:", req.url);
     if (req.url.startsWith("/ws/ai-counsel-chat")) {
       const wsAuth = authenticateWebSocketRequest(req);
+      console.log("Auth result:", wsAuth);
 
       if (!wsAuth) {
         socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
