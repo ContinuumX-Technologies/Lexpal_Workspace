@@ -139,7 +139,7 @@ const CitationTree: React.FC<{
     instance.fitView({ padding: 0.2 });
   }, []);
 
-  const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
+  const onNodeClick = useCallback(( node: any) => {
     const docId = node.data?.docId;
     if (docId) {
       console.log(`[GRAPH CLICK] Loading document with docId: ${docId}`);
@@ -522,7 +522,8 @@ const JudgementAnalyser: React.FC = () => {
   const [activeTask, setActiveTask] = useState<TaskType>("full");
   const [loading, setLoading] = useState(false);
   const [caseData, setCaseData] = useState<CaseDoc | null>(null);
-  const [judgementText, setJudgementText] = useState("");
+  //unused state
+  // const [judgementText, setJudgementText] = useState("");
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string; paraKey?: string; offset?: number } | null>(null);
 
   const { updateCase, cases } = useAnalysisStore();
@@ -975,7 +976,7 @@ const JudgementAnalyser: React.FC = () => {
   const fetchCaseDetails = async (id: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:3001/api/judgements/${id}`);
+      const res = await fetch(`/api/judgements/${id}`);
       if (!res.ok) throw new Error("Failed to fetch judgment");
       const data = await res.json();
       setCaseData(data);
@@ -1013,15 +1014,16 @@ const JudgementAnalyser: React.FC = () => {
   useEffect(() => {
     if (caseData && caseData.texts) {
       if (activeTask === "full") {
-        setJudgementText(caseData.texts.map(t => t.content).join("\n\n"));
+        
+        // setJudgementText(caseData.texts.map(t => t.content).join("\n\n"));
       } else {
-        const targetType = taskToMongoType[activeTask as CaseTask];
-        const filtered = caseData.texts.filter(t => t.type === targetType);
-        const content = filtered.length > 0
-          ? filtered.map(t => t.content).join("\n\n")
-          : "";
-
-        setJudgementText(content);
+        // const targetType = taskToMongoType[activeTask as CaseTask];
+        // const filtered = caseData.texts.filter(t => t.type === targetType);
+        // const content = filtered.length > 0
+        //   ? filtered.map(t => t.content).join("\n\n")
+        //   : "";
+        
+        // setJudgementText(content);
       }
     }
   }, [activeTask, caseData]);

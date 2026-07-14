@@ -65,13 +65,15 @@ function parseInlineNodes(nodes: PMNode[]): object[] {
   return result;
 }
 
+
+//declared but unused function
 // Flatten inline nodes into a single text string + style for simple cells
-function inlineToText(nodes: PMNode[]): string {
-  return nodes
-    .filter((n) => n.type === "text")
-    .map((n) => n.text ?? "")
-    .join("");
-}
+// function inlineToText(nodes: PMNode[]): string {
+//   return nodes
+//     .filter((n) => n.type === "text")
+//     .map((n) => n.text ?? "")
+//     .join("");
+// }
 
 // ─── Table ────────────────────────────────────────────────────────────────────
 

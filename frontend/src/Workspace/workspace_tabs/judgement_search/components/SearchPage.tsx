@@ -33,7 +33,8 @@ export default function SearchPage() {
   const { 
     search, appState, pinnedCases, togglePin,
     jurisdiction, setJurisdiction,
-    year, setYear,
+    year, 
+    // setYear,
     yearFrom, setYearFrom,
     yearTo, setYearTo,
     status, setStatus,

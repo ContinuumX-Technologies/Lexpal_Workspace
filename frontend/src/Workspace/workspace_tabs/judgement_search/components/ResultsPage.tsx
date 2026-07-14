@@ -321,8 +321,8 @@ export default function ResultsPage() {
     pinnedCases,
     jurisdiction,
     setJurisdiction,
-    year,
-    setYear,
+    // year,
+    // setYear,  //both year and setYear are required values for the filter state and need to be implemented
     yearFrom,
     setYearFrom,
     yearTo,

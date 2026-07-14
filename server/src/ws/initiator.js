@@ -8,7 +8,7 @@ export default function initWebSocketServer(server) {
   // const Chatwss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (req, socket, head) => {
-    
+     console.log("Upgrade:", req.url);
     if (req.url.startsWith("/ws/ai-counsel-chat")) {
       const wsAuth = authenticateWebSocketRequest(req);
 

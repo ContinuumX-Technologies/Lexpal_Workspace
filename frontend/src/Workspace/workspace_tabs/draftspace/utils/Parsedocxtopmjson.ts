@@ -57,8 +57,8 @@ const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
 const A_NS  = "http://schemas.openxmlformats.org/drawingml/2006/main";
-const PIC_NS = "http://schemas.openxmlformats.org/drawingml/2006/picture";
-const MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+// const PIC_NS = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+// const MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
 // Word heading style ids → ProseMirror heading level
 const HEADING_LEVEL: Record<string, number> = {
@@ -81,9 +81,10 @@ function wTag(el: Element, local: string): Element | null {
   return el.getElementsByTagNameNS(W_NS, local)[0] ?? null;
 }
 
-function wTags(el: Element, local: string): Element[] {
-  return Array.from(el.getElementsByTagNameNS(W_NS, local));
-}
+//declared but unused function
+// function wTags(el: Element, local: string): Element[] {
+//   return Array.from(el.getElementsByTagNameNS(W_NS, local));
+// }
 
 function wAttr(el: Element | null, local: string): string | null {
   if (!el) return null;

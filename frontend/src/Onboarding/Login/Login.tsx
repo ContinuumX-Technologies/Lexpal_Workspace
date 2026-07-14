@@ -21,7 +21,7 @@ export default function LoginPage() {
    
   const navigate = useNavigate();
 
-  const server_url = process.env.NEXT_PUBLIC_DEV_SERVER_URL;
+  
 
   const [form, setForm] = useState<FormState>({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
@@ -107,7 +107,7 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${server_url}/api/auth/lawyer-login`, {
+      const res = await fetch(`/api/auth/lawyer-login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

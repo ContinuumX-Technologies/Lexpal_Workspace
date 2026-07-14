@@ -104,7 +104,7 @@ const JDSearchContext = createContext<JDSearchContextValue | null>(null);
 
 // ─── Fetch actual case detail from backend ───────────────────────────────────
 async function fetchCaseDetail(id: string, item?: JudgmentListItem): Promise<CaseResult> {
-  const res = await fetch(`http://localhost:3001/api/judgements/${id}`);
+  const res = await fetch(`/api/judgements/${id}`);
   if (!res.ok) throw new Error("Failed to fetch detail");
   const doc = await res.json();
 
@@ -194,8 +194,8 @@ async function fetchCaseDetail(id: string, item?: JudgmentListItem): Promise<Cas
 // ─── Real search API call ──────────────────────────────────────────────────────
 async function callSearchApi(body: Record<string, unknown>, source: SearchSource): Promise<SearchApiResponse> {
   const url = source === "public" 
-    ? "http://localhost:3001/api/judgements/search"
-    : "http://localhost:3001/api/firm-precedents/search";
+    ? "/api/judgements/search"
+    : "/api/firm-precedents/search";
     
   const res = await fetch(url, {
     method: "POST",

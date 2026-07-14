@@ -122,7 +122,7 @@ export function findNodeById(
 
     let result: NodeLocation | null = null;
 
-    function walk(node: PMNode, parent: PMNode | null): void {
+    function walk(node: PMNode): void {
         if (result || !node.content?.length) return;
 
         for (let i = 0; i < node.content.length; i++) {
@@ -133,12 +133,12 @@ export function findNodeById(
                 return;
             }
 
-            walk(child, node);
+            walk(child);
             if (result) return;
         }
     }
 
-    walk(root, null);
+    walk(root);
     return result;
 }
 
