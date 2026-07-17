@@ -1,40 +1,58 @@
-import { SquarePen, PlusIcon } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { NEW_CONVERSATION_ID, useSidebar } from "../context/SidebarContext";
 
+
+
+
 export default function Sidebar() {
+  
+  
+  
   const {
     activeConvoId,
-    setActiveConvoId,
+    
+    openConversation,
+
     isSidebarOpen,
-    setSidebarOpen,
+    toggleSidebar,
+
     conversations,
     conversationsLoading,
     conversationsError,
   } = useSidebar();
 
-  if (!isSidebarOpen) {
-    return (
-      <aside className={`${styles.sidebar} ${styles.miniSidebar}`}>
-        <div className={styles.miniHeader}>
-          <button
-            className={styles.miniIconBtn}
-            onClick={() => setActiveConvoId(NEW_CONVERSATION_ID)}
-            title="New Chat"
-          >
-            <SquarePen size={18} />
-          </button>
-        </div>
-      </aside>
-    );
-  }
+
+
+
+  //to show thin sidebar column when sidebar is closed
+  // if (!isSidebarOpen) {
+  //   return (
+  //     <aside className={`${styles.sidebar} ${styles.miniSidebar}`}>
+  //       <div className={styles.miniHeader}>
+  //         <button
+  //           className={styles.miniIconBtn}
+  //           onClick={() => activateConversation(NEW_CONVERSATION_ID)}
+  //           title="New Chat"
+  //         >
+  //           <SquarePen size={18} />
+  //         </button>
+  //       </div>
+  //     </aside>
+  //   );
+  // }
+
+
+
+
+
 
   return (
     <>
       <aside className={styles.sidebar}>
         <div className={styles.sidebarTopBar}>
-          <button className={styles.newChatBtn} onClick={() => setActiveConvoId(NEW_CONVERSATION_ID)}>
-            <PlusIcon size={15} strokeWidth={2.5} />
+          <button className={styles.newChatBtn} onClick={() => openConversation(NEW_CONVERSATION_ID)}>
+            <SquarePen size={15} strokeWidth={2.5} />
             <span>New Chat</span>
           </button>
         </div>
@@ -62,9 +80,9 @@ export default function Sidebar() {
                     <button
                       className={`${styles.historyItem} ${isActive ? styles.active : ""}`}
                       onClick={() => {
-                        setActiveConvoId(convo.id);
+                        openConversation(convo.id);
                         if (window.innerWidth < 768) {
-                          setSidebarOpen(false);
+                          toggleSidebar();
                         }
                       }}
                     >
@@ -80,7 +98,7 @@ export default function Sidebar() {
 
       <div
         className={`${styles.mobileOverlay} ${isSidebarOpen ? styles.visible : ""}`}
-        onClick={() => setSidebarOpen(false)}
+        onClick={() => toggleSidebar()}
       />
     </>
   );

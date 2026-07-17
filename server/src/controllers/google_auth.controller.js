@@ -81,7 +81,7 @@ export const GoogleAuth = async (req, res) => {
             maxAge: 7 * 24 * 60 * 60 * 1000,
             httpOnly: true,
             sameSite: "None",
-                domain: ".lexpal.in",
+            domain: ".lexpal.in",
             secure: process.env.NODE_ENV !== "development"
         });
 

@@ -23,21 +23,21 @@ export default function AICounselChatGateway(wss) {
       const url = new URL(req.url, "http://localhost");
 
 
-      const convoId = url.searchParams.get("convo_id")?.trim() || "";
+      // const convoId = url.searchParams.get("convo_id")?.trim() || "";
 
 
-      if (convoId && convoId !== NEW_CONVERSATION_ID) {
-        const convo = await resolveConversation({
-          convoId,
-          userId: socket.user_id,
-        });
+      // if (convoId && convoId !== NEW_CONVERSATION_ID) {
+      //   const convo = await resolveConversation({
+      //     convoId,
+      //     userId: socket.user_id,
+      //   });
 
-        socket.convo_id = convo._id.toString();
-        socket.convo_title = convo.title || null;
-      } else {
-        socket.convo_id = null;
-        socket.convo_title = null;
-      }
+      //   socket.convo_id = convo._id.toString();
+      //   socket.convo_title = convo.title || null;
+      // } else {
+      //   socket.convo_id = null;
+      //   socket.convo_title = null;
+      // }
 
       
       socket.pending_new_convo = null;

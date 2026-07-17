@@ -23,7 +23,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://api.lexpal.in',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },

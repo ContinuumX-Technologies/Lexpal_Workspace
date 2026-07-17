@@ -71,7 +71,7 @@ export default function LoginPage() {
 
       console.log(data);
 
-      navigate("/workspace")
+      navigate("/workspace");
 
     },
 
@@ -107,7 +107,7 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`/api/auth/lawyer-login`, {
+      const res = await fetch(`/api/auth/login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -122,7 +122,7 @@ export default function LoginPage() {
         return;
       }
 
-      //   router.push("/Lawyer-Dashboard");
+         navigate("/workspace");
     } catch (err) {
       console.error(err);
       setError("Server error, try again later.");

@@ -15,7 +15,43 @@ export const UserSignup = async (req, res) => {
         // Check if User exists
         const existing = await User.findOne({ email });
         if (existing) {
-            return res.status(400).json({ message: "Email already registered" });
+
+            if (existing.password_hash!=null) {
+
+                return res.status(400).json({
+
+                    message: "You are already registered. Please log in."
+
+                });
+
+            }
+
+            existing.password_hash = await hashPassword(password);
+
+            await existing.save();
+
+            const token = generateToken(existing._id);
+
+            res.cookie("jwt", token, {
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                httpOnly: true,
+                sameSite: "None",
+                domain: ".lexpal.in",
+                secure: process.env.NODE_ENV != "development"
+            });
+
+
+            return res.status(201).json({
+                message: "Lawyer signup successful",
+                token,
+                User: {
+                    _id: existing._id,
+                    name: existing.first_name,
+                    email: existing.email,
+
+                }
+            });
+
         }
 
         // Hash password
@@ -39,9 +75,9 @@ export const UserSignup = async (req, res) => {
                 domain: ".lexpal.in",
                 secure: process.env.NODE_ENV != "development"
             });
-        }
+        
 
-        return res.status(201).json({
+         return res.status(201).json({
             message: "Lawyer signup successful",
             token,
             User: {
@@ -50,12 +86,19 @@ export const UserSignup = async (req, res) => {
                 email: user.email,
 
             }
-        });
+          });
+        }
 
     } catch (error) {
+        console.log(error);
         res.status(500).json({ message: "Server error", error });
     }
 };
+
+
+
+
+
 
 
 
@@ -77,7 +120,7 @@ export const UserLogin = async (req, res) => {
             maxAge: 7 * 24 * 60 * 60 * 1000,
             httpOnly: true,
             sameSite: "None",
-                domain: ".lexpal.in",
+            domain: ".lexpal.in",
             secure: process.env.NODE_ENV != "development"
         });
 

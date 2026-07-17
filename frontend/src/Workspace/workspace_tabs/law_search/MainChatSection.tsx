@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
-import { NEW_CONVERSATION_ID, type LawSearchChatMessage, useSidebar } from "./context/SidebarContext";
+import { type LawSearchChatMessage, useSidebar } from "./context/SidebarContext";
 import styles from "./MainChatSection.module.css";
 import LawCards, { type DiscoveredLaw as LawCardLaw } from "./components/LawCards";
 import {
@@ -22,6 +22,9 @@ import {
   Zap,
   BrainCog,
 } from "lucide-react";
+import {ws_url_base} from "@/config";
+
+
 
 const toLawCardLaw = (law: DiscoveredLaw): LawCardLaw => ({
   act_name: law.act_name,
@@ -35,6 +38,8 @@ const toLawCardLaw = (law: DiscoveredLaw): LawCardLaw => ({
   relevance_score: law.relevance_score,
 });
 
+
+
 type InboundSocketPayload = {
   type?: string;
   content?: string;
@@ -46,6 +51,9 @@ type InboundSocketPayload = {
   client_message_id?: string | null;
   message?: string;
 };
+
+
+
 
 const composeSocketContent = (prompt: string, context: OutboundContextObject) => {
   const historyLabel =
@@ -75,17 +83,25 @@ const composeSocketContent = (prompt: string, context: OutboundContextObject) =>
   ].join("\n");
 };
 
+
+
+
+
+
 const MainChatSection = () => {
-  const serverUrl = import.meta.env.VITE_SERVER_URL;
+  
 
   const {
     toggleSidebar,
     activeConvoId,
-    setActiveConvoId,
+    commitConversation,
+
     messages,
     messagesLoading,
     messagesError,
+
     refreshConversations,
+
     appendMessage,
     markMessageSent,
     markMessageError,
@@ -101,6 +117,7 @@ const MainChatSection = () => {
   const [, setActiveMoreMenuIndex] = useState<number | null>(null);
   const [chatMode, setChatMode] = useState<"basic_chat" | "reasoning_chat">("basic_chat");
   const [reasoningMode, setReasoningMode] = useState<"lite" | "deep">("lite");
+  // const [webSearch, setWebSearch]= useState<boolean>(false);
   const [fallbackAttachmentMap, setFallbackAttachmentMap] = useState<Record<string, AttachmentMetadata>>({});
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -115,13 +132,21 @@ const MainChatSection = () => {
     setChatMode((prev) => (prev === "basic_chat" ? "reasoning_chat" : "basic_chat"));
   };
 
+
+
+
   useEffect(() => {
     seenAiMessageIdsRef.current = new Set(messages.filter((msg) => msg.sender === "AI").map((msg) => msg.id));
   }, [messages, activeConvoId]);
 
+
+
   useEffect(() => {
     activeConvoIdRef.current = activeConvoId;
   }, [activeConvoId]);
+
+
+
 
   useEffect(() => {
     let cancelled = false;
@@ -181,6 +206,12 @@ const MainChatSection = () => {
     };
   }, [messages, getAttachmentMetadataById, fallbackAttachmentMap]);
 
+
+
+
+
+
+  //connect to ai-counsel-chat websocket
   useEffect(() => {
     setSocketReady(false);
     setConnectionError(null);
@@ -194,13 +225,13 @@ const MainChatSection = () => {
         socketRef.current = null;
       }
 
-      const serverHost = serverUrl?.replace(/^https?:\/\//, "") || "localhost:3001";
-      const wsProtocol = serverUrl?.startsWith("https://") ? "wss://" : "ws://";
-      const convoQuery =
-        activeConvoId !== NEW_CONVERSATION_ID ? `?convo_id=${encodeURIComponent(activeConvoId)}` : "";
-      const wsUrl = `${wsProtocol}${serverHost}/ws/ai-counsel-chat${convoQuery}`;
+      
+     
+      const wsUrl = `${ws_url_base}/ws/ai-counsel-chat`;
       const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
+
+
 
       socket.onopen = () => {
         if (!isMounted) {
@@ -212,20 +243,26 @@ const MainChatSection = () => {
         setConnectionError(null);
       };
 
+
+
+
+
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data) as InboundSocketPayload;
 
           if (payload.type === "convo_created" && payload.convo_id) {
-            setActiveConvoId(payload.convo_id);
-            void refreshConversations();
+            commitConversation(payload.convo_id);
+           
             return;
           }
+        
 
           if (payload.type === "convo_title_updated") {
             void refreshConversations();
             return;
           }
+
 
           if (payload.type === "message_ack") {
             const ackClientMessageId = payload.client_message_id ?? null;
@@ -233,14 +270,10 @@ const MainChatSection = () => {
             if (ackClientMessageId) {
               markMessageSent(ackClientMessageId);
             }
-
-            if (payload.convo_id && activeConvoIdRef.current === NEW_CONVERSATION_ID) {
-              setActiveConvoId(payload.convo_id);
-              void refreshConversations();
-            }
-
+            
             return;
           }
+
 
           if (payload.type === "ai_message") {
             const aiMessageId = payload.message_id || `ai-${Date.now()}`;
@@ -263,6 +296,7 @@ const MainChatSection = () => {
               attachmentMetadata: [],
               status: "sent",
             });
+             
             setIsProcessing(false);
             return;
           }
@@ -271,11 +305,16 @@ const MainChatSection = () => {
             setConnectionError(payload.message || "Connection error");
             setIsProcessing(false);
           }
+
+
         } catch {
           setConnectionError("Failed to parse server response");
           setIsProcessing(false);
         }
       };
+
+
+
 
       socket.onerror = () => {
         if (isMounted) {
@@ -283,6 +322,9 @@ const MainChatSection = () => {
           setSocketReady(false);
         }
       };
+
+
+
 
       socket.onclose = (event) => {
         if (!isMounted) {
@@ -299,6 +341,9 @@ const MainChatSection = () => {
           }, 2000);
         }
       };
+
+
+
     };
 
     connectWebSocket();
@@ -314,11 +359,18 @@ const MainChatSection = () => {
         socketRef.current = null;
       }
     };
-  }, [activeConvoId, serverUrl, socketVersion, setActiveConvoId, refreshConversations, appendMessage, markMessageSent]);
+  }, [ socketVersion, refreshConversations, appendMessage, markMessageSent]);
+
+
+
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, messagesLoading, isProcessing]);
+
+
+
 
   const sendToSocket = async (
     payload: {
@@ -347,6 +399,8 @@ const MainChatSection = () => {
     return true;
   };
 
+
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || !socketReady || isProcessing) {
       return false;
@@ -364,6 +418,8 @@ const MainChatSection = () => {
       setConnectionError(errorMessage);
       return false;
     }
+
+
 
     const clientMessageId = crypto.randomUUID();
     const finalContent = composeSocketContent(text, payloadResult.context);
@@ -451,6 +507,9 @@ const MainChatSection = () => {
     }
   };
 
+
+
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     setShowShareToast(true);
@@ -459,6 +518,10 @@ const MainChatSection = () => {
       setShowShareToast(false);
     }, 2000);
   };
+
+
+
+
 
   const handleStop = () => {
     if (socketRef.current) {
@@ -470,6 +533,15 @@ const MainChatSection = () => {
   };
 
   const isEmptyState = messages.length === 0 && !messagesLoading;
+
+
+
+
+
+
+
+
+
 
   const displayMessages = useMemo(() => {
     return messages.map((msg) => {
@@ -492,6 +564,18 @@ const MainChatSection = () => {
       };
     });
   }, [messages, fallbackAttachmentMap]);
+
+
+
+
+
+
+
+
+
+
+
+
 
   return (
     <main className={styles.main}>

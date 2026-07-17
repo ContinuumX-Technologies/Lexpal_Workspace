@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import  { createContext, useContext, useState } from "react";
+import  { createContext, useContext, useState, useMemo } from "react";
 
 import { useParams } from 'react-router-dom';
 
@@ -31,8 +31,25 @@ export const TabContextPvdr=({children}:{children:React.ReactNode})=>{
     const [activeTab, setActiveTab]=useState<TabType>(caseId ? "judgement_search" : "law_search");
     const [isLeftPanelOpen, setIsLeftPanelOpen]=useState<boolean>(false);
 
+
+    const tabContextValue= useMemo<tabContextType>(()=>(
+        {
+         activeTab, 
+         setActiveTab, 
+         isLeftPanelOpen, 
+         setIsLeftPanelOpen
+
+        }),
+        [
+            activeTab,
+            setActiveTab,
+            isLeftPanelOpen,
+            setIsLeftPanelOpen
+        ]);
+
+
     // plain js shorthand activeTab: activeTab
-    return( <tabContext.Provider value={{activeTab, setActiveTab, isLeftPanelOpen, setIsLeftPanelOpen}}>
+    return( <tabContext.Provider value={tabContextValue}>
         {children}
      </tabContext.Provider>); 
 };

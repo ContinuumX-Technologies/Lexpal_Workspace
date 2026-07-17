@@ -1,7 +1,11 @@
-import { createContext, useContext, useEffect, useRef } from "react"
-import { useUsageStore, estimateTokens } from "@/store/usageStore"
-import { DEFAULT_DRAFT_STATE, DEFAULT_ENRICHMENT, useDraftStore } from "./store/draftStore"
-import type { ClarificationPair, ProseMirrorJsonNode, MinimalNode, DependencyGraph } from "./store/draftStore"
+import { createContext, useContext, useEffect, useRef } from "react";
+import { useUsageStore, estimateTokens } from "@/store/usageStore";
+import { DEFAULT_DRAFT_STATE, DEFAULT_ENRICHMENT, useDraftStore } from "./store/draftStore";
+import type { ClarificationPair, ProseMirrorJsonNode, MinimalNode, DependencyGraph } from "./store/draftStore";
+
+import { api_url_base } from "@/config";
+
+
 
 
 import {
@@ -21,7 +25,7 @@ import type {
   LexpalToSequentialMap,
   NodeMetadata,
 } from "./AI_draft_editing/draftIndexer";
-import type { EditPlan } from "./AI_draft_editing/draftEditTools"
+import type { EditPlan } from "./AI_draft_editing/draftEditTools";
 
 
 
@@ -393,10 +397,10 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
   const requestDraftTask = async (
     payload: DraftTaskRequestPayload
   ): Promise<DraftTaskApiResponse> => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
+   
 
     try {
-      const response = await fetch(`${apiBase}/api/documents/draftspace-ai`, {
+      const response = await fetch(`${api_url_base}/api/documents/draftspace-ai`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -460,10 +464,10 @@ export function DraftspaceProvider({ children }: { children: React.ReactNode }) 
   const requestEditTask = async (
     payload: EditTaskRequestPayload
   ): Promise<EditTaskApiResponse> => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
+    
 
     try {
-      const response = await fetch(`${apiBase}/api/documents/draftspace/edit`, {
+      const response = await fetch(`${api_url_base}/api/documents/draftspace/edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

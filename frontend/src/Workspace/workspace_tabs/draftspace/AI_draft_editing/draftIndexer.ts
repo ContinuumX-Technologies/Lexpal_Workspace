@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import {api_url_base} from "@/config";
+
 export interface PMNode {
     type: string;
     attrs?: Record<string, any>;
@@ -385,9 +387,9 @@ export interface LLMAnalysisResult {
 
 // Generate memos for nodes and dependency arrays for nodes.
 export async function analyzeDraft(tree: LLMNode): Promise<LLMAnalysisResult> {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
+    
 
-    const response = await axios.post(`${apiBase}/api/documents/analyze`, {
+    const response = await axios.post(`${api_url_base}/api/documents/analyze`, {
         tree,
     });
 

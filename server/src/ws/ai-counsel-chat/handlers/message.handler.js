@@ -74,9 +74,14 @@ const normalizeConvoId = (rawConvoId) => {
   return rawConvoId.trim();
 };
 
+
+
 const isBlankTitle = (value) => {
   return typeof value !== "string" || value.trim().length === 0;
 };
+
+
+
 
 const getSocketConvoTitle = (value) => {
   if (typeof value !== "string") {
@@ -119,39 +124,37 @@ const createConversationForSocket = async (socket) => {
   return creationPromise;
 };
 
+
+
+
+
+
+
+
+
+
 const resolveConversationForMessage = async ({ socket, requestedConvoId }) => {
-  const normalizedConvoId = normalizeConvoId(requestedConvoId);
+  
+  socket.convo_id=requestedConvoId;
 
-  if (normalizedConvoId === NEW_CONVERSATION_ID) {
-    if (socket.convo_id) {
-      const convo = await resolveConversation({
-        convoId: socket.convo_id,
-        userId: socket.user_id,
-      });
-
-      socket.convo_id = convo._id.toString();
-      socket.convo_title = getSocketConvoTitle(convo.title);
-
-      return {
-        convo,
-        convoId: socket.convo_id,
-      };
-    }
+  if (socket.convo_id=== NEW_CONVERSATION_ID) {
+    
 
     const convo = await createConversationForSocket(socket);
+    socket.convo_id=convo._id.toString();
     return {
       convo,
       convoId: convo._id.toString(),
     };
   }
 
-  if (normalizedConvoId) {
+  else {
     const convo = await resolveConversation({
-      convoId: normalizedConvoId,
+      convoId: socket.convo_id,
       userId: socket.user_id,
     });
 
-    socket.convo_id = convo._id.toString();
+    
     socket.convo_title = getSocketConvoTitle(convo.title);
 
     return {
@@ -160,27 +163,14 @@ const resolveConversationForMessage = async ({ socket, requestedConvoId }) => {
     };
   }
 
-  if (socket.convo_id) {
-    const convo = await resolveConversation({
-      convoId: socket.convo_id,
-      userId: socket.user_id,
-    });
-
-    socket.convo_id = convo._id.toString();
-    socket.convo_title = getSocketConvoTitle(convo.title);
-
-    return {
-      convo,
-      convoId: socket.convo_id,
-    };
-  }
-
-  const convo = await createConversationForSocket(socket);
-  return {
-    convo,
-    convoId: convo._id.toString(),
-  };
+  
+  
 };
+
+
+
+
+
 
 const scheduleConversationTitleGeneration = ({ socket, convoId, userPrompt }) => {
   if (!convoId || titleGenerationLocks.has(convoId)) {
@@ -268,7 +258,7 @@ export async function handleMessage(socket, raw) {
     sendSocketMessage(socket, {
       type: "error",
       code: "INVALID_PAYLOAD",
-      message: "Invalid WebSocket payload",
+      message: "invalid WebSocket payload",
     });
     return;
   }
@@ -286,9 +276,17 @@ export async function handleMessage(socket, raw) {
     sendSocketMessage(socket, {
       type: "error",
       code: "EMPTY_PROMPT",
-      message: "Message content is required",
+      message: "message content is required",
     });
     return;
+  }
+
+  if(!requestedConvoId){
+    sendSocketMessage(socket,{
+      type:"error",
+      code:"EMPTY_CONVO_ID",
+      message:"convo_id is required"
+    })
   }
 
   if (socket.is_processing) {
@@ -302,7 +300,13 @@ export async function handleMessage(socket, raw) {
 
   socket.is_processing = true;
 
+
   try {
+
+
+   
+
+    
     const { convo, convoId } = await resolveConversationForMessage({
       socket,
       requestedConvoId,

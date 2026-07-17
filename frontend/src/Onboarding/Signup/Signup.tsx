@@ -67,7 +67,7 @@ export default function SignupPage() {
         throw new Error(data.message || "Google authentication failed");
       }
 
-      navigate("/workspace")
+      navigate("/workspace");
 
       console.log(data);
 
@@ -120,7 +120,7 @@ export default function SignupPage() {
     setError("");
 
     try {
-      const res = await fetch(`/api/auth/lawyer-signup`, {
+      const res = await fetch(`/api/auth/signup`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -142,7 +142,7 @@ export default function SignupPage() {
         return;
       }
 
-    //   router.push("/Lawyer-Dashboard");
+      navigate("/workspace");
     } catch (err) {
       setError("Server error. Try again.");
       setSubmitting(false);

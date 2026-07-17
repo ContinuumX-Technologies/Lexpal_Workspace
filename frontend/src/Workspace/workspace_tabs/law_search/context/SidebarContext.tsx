@@ -46,7 +46,11 @@ export type AttachedContextPreview = {
   info?: string;
 };
 
+
 export type MessageDeliveryStatus = "sending" | "sent" | "error";
+
+
+
 
 export type LawSearchChatMessage = {
   id: string;
@@ -63,18 +67,35 @@ export type LawSearchChatMessage = {
   status?: MessageDeliveryStatus;
 };
 
+
+
+
+
 type SidebarContextType = {
+
+  //sidebar
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
-  setSidebarOpen: (open: boolean) => void;
+
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
+
+
+
+  //conversations
   activeConvoId: ActiveConversationId;
-  setActiveConvoId: (id: ActiveConversationId) => void;
+ 
+  openConversation:(conversationId: ActiveConversationId)=> void;
+  commitConversation:(conversationId: ActiveConversationId) => void;
+
   conversations: ConversationListItem[];
   conversationsLoading: boolean;
   conversationsError: string | null;
   refreshConversations: () => Promise<void>;
+
+
+
+  //messages
   messages: LawSearchChatMessage[];
   messagesLoading: boolean;
   messagesError: string | null;
@@ -92,11 +113,20 @@ type SidebarContextType = {
   getAttachmentMetadataById: (id: string) => Promise<AttachmentMetadata | null>;
 };
 
+
+
+
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+
+
+
 
 const normalizeLawCacheKey = (actName: string, sectionNo: string): LawCacheKey => {
   return `${actName.trim().toLowerCase()}::${sectionNo.trim().toLowerCase()}`;
 };
+
+
+
 
 const toDiscoveredLawWithHydratedText = (
   law: DiscoveredLaw,
@@ -112,6 +142,9 @@ const toDiscoveredLawWithHydratedText = (
   };
 };
 
+
+
+
 const toLawCardLaw = (law: DiscoveredLaw): LawCardLaw => ({
   act_name: law.act_name,
   section_no: law.section_no,
@@ -123,6 +156,10 @@ const toLawCardLaw = (law: DiscoveredLaw): LawCardLaw => ({
   reasoning: law.reasoning,
   relevance_score: law.relevance_score,
 });
+
+
+
+
 
 const extractPromptFromContent = (content: string) => {
   const newFormatMatch = content.match(/--- User Prompt ---\n([\s\S]*?)\n--- End User Prompt ---/);
@@ -140,6 +177,11 @@ const extractPromptFromContent = (content: string) => {
 
   return content.replace(legacyMatch[0], "").trim();
 };
+
+
+
+
+
 
 const extractAttachedContextPreview = (content: string): AttachedContextPreview[] => {
   const previews: AttachedContextPreview[] = [];
@@ -159,6 +201,11 @@ const extractAttachedContextPreview = (content: string): AttachedContextPreview[
 
   return previews;
 };
+
+
+
+
+
 
 const toChatMessage = (msg: HistoricMessage): LawSearchChatMessage => {
   const attachmentIds = Array.isArray(msg.attachments) ? msg.attachments : [];
@@ -193,22 +240,240 @@ const toChatMessage = (msg: HistoricMessage): LawSearchChatMessage => {
   };
 };
 
+
+
+
+
+
+
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(260);
-  const [activeConvoId, setActiveConvoIdState] = useState<ActiveConversationId>(NEW_CONVERSATION_ID);
+
+  // sidebar states
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(260);
+
+  // conversation states
+  const [activeConvoId, setActiveConvoId] = useState<ActiveConversationId>(NEW_CONVERSATION_ID);
 
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
 
+
+  // message states
   const [messages, setMessages] = useState<LawSearchChatMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesError, setMessagesError] = useState<string | null>(null);
 
   const lawCacheRef = useRef<Map<LawCacheKey, LawLookupResponse>>(new Map());
+
   const messageRequestSeqRef = useRef(0);
 
+
+
+
+
+
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+
+
+
+
+
+  // fetch msg history of a conversation from the backend, hydrate all the discovered law objects and update the messages[] state 
+  const loadConversationMessages = useCallback(
+    async (
+      conversationId: string,
+      requestSeq: number,
+      controller: AbortController
+    ) => {
+      
+      clearMessages();
+      setMessagesLoading(true);
+      setMessagesError(null);
+
+      try {
+
+        const rawMessages = await fetchConversationMessages(
+          conversationId,
+          controller.signal
+        );
+
+        const hydrated = await hydrateMessageLaws(
+          rawMessages,
+          controller.signal
+        );
+
+        if (requestSeq !== messageRequestSeqRef.current) {
+          return;
+        }
+
+        replaceMessages(hydrated.map(toChatMessage));
+
+
+      } catch (err) {
+
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (requestSeq !== messageRequestSeqRef.current) {
+          return;
+        }
+
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load messages";
+
+        setMessagesError(errorMessage);
+        replaceMessages([]);
+
+      } finally {
+
+        if (requestSeq === messageRequestSeqRef.current) {
+          setMessagesLoading(false);
+        }
+
+      }
+    },
+    []
+  );
+
+
+
+
+
+
+
+
+  //load msg history of the activeConvoId conversation once on component mount
+  useEffect(() => {
+    if (activeConvoId === NEW_CONVERSATION_ID) {
+      replaceMessages([]);
+      return;
+    }
+
+    const requestSeq = ++messageRequestSeqRef.current;
+    const controller = new AbortController();
+
+    void loadConversationMessages(
+      activeConvoId,
+      requestSeq,
+      controller
+    );
+
+    return () => controller.abort();
+  }, []);
+
+
+
+
+
+
+
+  // this function changes the activeConvoId state and depending upon the new activeConvoId decides if msg history fetch and replacing the messages[] state is required 
+  
+
+
+  const commitConversation = useCallback(
+  (conversationId: ActiveConversationId) => {
+    const normalized =
+      typeof conversationId === "string"
+        ? conversationId.trim()
+        : "";
+
+    if (!isMongoObjectId(normalized)) {
+      return;
+    }
+
+    if (activeConvoId !== NEW_CONVERSATION_ID) {
+      return;
+    }
+
+    setActiveConvoId(normalized);
+  },
+  [activeConvoId]
+);
+
+
+
+
+  const openConversation = useCallback(
+  (conversationId: ActiveConversationId) => {
+    const normalized =
+      typeof conversationId === "string" ? conversationId.trim() : "";
+
+    if (
+      !normalized ||
+      (normalized !== NEW_CONVERSATION_ID &&
+        !isMongoObjectId(normalized))
+    ) {
+      return;
+    }
+
+    if (activeConvoId === normalized) {
+      return;
+    }
+
+    setActiveConvoId(normalized);
+
+    if (normalized === NEW_CONVERSATION_ID) {
+      replaceMessages([]);
+      setMessagesLoading(false);
+      return;
+    }
+
+    const requestSeq = ++messageRequestSeqRef.current;
+    const controller = new AbortController();
+
+    void loadConversationMessages(
+      normalized,
+      requestSeq,
+      controller
+    );
+  },
+  [
+    activeConvoId,
+    loadConversationMessages,
+  
+  ]
+);
+
+
+
+  
+
+
+
+
+  //fetch historic conversations from backend
+  const refreshConversations = useCallback(async () => {
+    setConversationsLoading(true);
+    setConversationsError(null);
+
+    try {
+      const data = await fetchHistoricConversations();
+      setConversations(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load conversations";
+      setConversationsError(errorMessage);
+      setConversations([]);
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, []);
+
+
+
+
+  useEffect(() => {
+    void refreshConversations();
+  }, [refreshConversations]);
+
+
+
+
+  //Initialisation of states: sidebar open or closed and sidebar width, on component mount
   useEffect(() => {
     const savedOpen = localStorage.getItem("lexpal_sidebar_open");
     const savedWidth = localStorage.getItem("lexpal_sidebar_width");
@@ -228,40 +493,49 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+
+
+
+
+
+  // save sidebar states in local storage
   useEffect(() => {
     localStorage.setItem("lexpal_sidebar_open", String(isSidebarOpen));
     localStorage.setItem("lexpal_sidebar_width", String(sidebarWidth));
   }, [isSidebarOpen, sidebarWidth]);
 
-  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
-  const setSidebarOpen = (open: boolean) => setIsSidebarOpen(open);
 
-  const setActiveConvoId = useCallback((id: ActiveConversationId) => {
-    const normalized = typeof id === "string" ? id.trim() : "";
 
-    if (!normalized) {
-      return;
-    }
 
-    if (normalized === NEW_CONVERSATION_ID || isMongoObjectId(normalized)) {
-      setActiveConvoIdState(normalized);
-    }
-  }, []);
 
-  const replaceMessages = useCallback((nextMessages: LawSearchChatMessage[]) => {
-    setMessages((prev) => {
-      const nextIds = new Set(nextMessages.map((m) => m.id));
-      const optimisticOrLiveMessages = prev.filter(
-        (m) => !nextIds.has(m.id) && (m.status === "sending" || m.status === "sent" || m.status === "error")
-      );
-      return [...nextMessages, ...optimisticOrLiveMessages];
-    });
-    setMessagesError(null);
-  }, []);
+
+
+
+
+
+
+
+
+
+  const replaceMessages = useCallback(
+    (replacementMessages: LawSearchChatMessage[]) => {
+      setMessages(replacementMessages);
+      setMessagesError(null);
+    },
+    []
+  );
+
+
+
 
   const appendMessage = useCallback((message: LawSearchChatMessage) => {
     setMessages((prev) => [...prev, message]);
   }, []);
+
+
+
+
+
 
   const updateMessage = useCallback(
     (
@@ -290,6 +564,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+
+
+
+
   const updateByClientMessageId = useCallback(
     (clientMessageId: string, status: MessageDeliveryStatus) => {
       if (!clientMessageId) {
@@ -316,6 +594,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     },
     []
   );
+
+
+
+
 
   const markMessageSent = useCallback(
     (clientMessageId: string) => {
@@ -347,25 +629,15 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const refreshConversations = useCallback(async () => {
-    setConversationsLoading(true);
-    setConversationsError(null);
 
-    try {
-      const data = await fetchHistoricConversations();
-      setConversations(data);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load conversations";
-      setConversationsError(errorMessage);
-      setConversations([]);
-    } finally {
-      setConversationsLoading(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    void refreshConversations();
-  }, [refreshConversations]);
+
+
+
+
+
+
+
 
   const hydrateMessageLaws = async (
     baseMessages: HistoricMessage[],
@@ -429,6 +701,13 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+
+
+
+
+
+
+
   const getAttachmentMetadataById = async (id: string): Promise<AttachmentMetadata | null> => {
     if (!id) {
       return null;
@@ -485,73 +764,108 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    const requestSeq = ++messageRequestSeqRef.current;
-    const controller = new AbortController();
 
-    const loadMessages = async () => {
-      if (activeConvoId === NEW_CONVERSATION_ID) {
-        replaceMessages([]);
-        setMessagesLoading(false);
-        return;
-      }
 
-      setMessagesLoading(true);
-      setMessagesError(null);
 
-      try {
-        const rawMessages = await fetchConversationMessages(activeConvoId, controller.signal);
-        const hydrated = await hydrateMessageLaws(rawMessages, controller.signal);
 
-        if (requestSeq !== messageRequestSeqRef.current) {
-          return;
-        }
+  //fetch message history for an active conversation on component mount
+  // useEffect(() => {
+  //   console.log("use effect for msg history fetch fired", activeConvoId);
 
-        replaceMessages(hydrated.map(toChatMessage));
-      } catch (err) {
-        if (controller.signal.aborted) {
-          return;
-        }
+  //   const requestSeq = ++messageRequestSeqRef.current;
+  //   const controller = new AbortController();
 
-        if (requestSeq !== messageRequestSeqRef.current) {
-          return;
-        }
+  //   const loadMessages = async () => {
+  //     console.log("load messages fired");
 
-        const errorMessage = err instanceof Error ? err.message : "Failed to load messages";
-        setMessagesError(errorMessage);
-        setMessages([]);
-      } finally {
-        if (requestSeq === messageRequestSeqRef.current) {
-          setMessagesLoading(false);
-        }
-      }
-    };
+  //     if (activeConvoId === NEW_CONVERSATION_ID) {
+  //       console.log("active convo = new detected", activeConvoId);
+  //       replaceMessages([]);
+  //       setMessagesLoading(false);
+  //       return;
+  //     }
 
-    void loadMessages();
 
-    return () => {
-      controller.abort();
-    };
-  }, [activeConvoId, replaceMessages]);
+  //     console.log("activeConvoId contains id of an existing convo", activeConvoId);
+  //     setMessagesLoading(true);
+  //     setMessagesError(null);
+
+  //     try {
+  //       const rawMessages = await fetchConversationMessages(activeConvoId, controller.signal);
+  //       const hydrated = await hydrateMessageLaws(rawMessages, controller.signal);
+
+  //       if (requestSeq !== messageRequestSeqRef.current) {
+  //         return;
+  //       }
+
+  //       replaceMessages(hydrated.map(toChatMessage));
+  //     } catch (err) {
+  //       if (controller.signal.aborted) {
+  //         return;
+  //       }
+
+  //       if (requestSeq !== messageRequestSeqRef.current) {
+  //         return;
+  //       }
+
+  //       const errorMessage = err instanceof Error ? err.message : "Failed to load messages";
+  //       setMessagesError(errorMessage);
+  //       setMessages([]);
+  //     } finally {
+  //       if (requestSeq === messageRequestSeqRef.current) {
+  //         setMessagesLoading(false);
+  //       }
+  //     }
+  //   };
+
+  //   void loadMessages();
+
+  //   return () => {
+  //     controller.abort();
+  //   };
+  // }, [activeConvoId, replaceMessages]);
+
+
+
+
+
+ 
+
 
   const clearMessages = () => {
     replaceMessages([]);
-    setMessagesLoading(false);
+    
   };
 
-  const contextValue = useMemo<SidebarContextType>(
+
+
+
+
+
+
+
+
+  const sidebarContextValue = useMemo<SidebarContextType>(
     () => ({
+      //sidebar states and functions
       isSidebarOpen,
       toggleSidebar,
-      setSidebarOpen,
+
       sidebarWidth,
       setSidebarWidth,
+
+      //conversation states and functions
       activeConvoId,
-      setActiveConvoId,
+      
+      openConversation,
+      commitConversation,
+
       conversations,
       conversationsLoading,
       conversationsError,
       refreshConversations,
+
+      //message history list, states and functions 
       messages,
       messagesLoading,
       messagesError,
@@ -585,8 +899,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     ]
   );
 
-  return <SidebarContext.Provider value={contextValue}>{children}</SidebarContext.Provider>;
+  return <SidebarContext.Provider value={sidebarContextValue}>{children}</SidebarContext.Provider>;
 }
+
+
+
 
 export function useSidebar() {
   const context = useContext(SidebarContext);
