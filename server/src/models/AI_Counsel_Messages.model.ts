@@ -2,6 +2,10 @@
 
 import mongoose from "mongoose";
 
+import { type WebResearch } from "../services/llm_websearch";
+
+
+
 const DiscoveredLawSchema = new mongoose.Schema(
   {
     act_name: {
@@ -56,8 +60,15 @@ const DiscoveredLawSchema = new mongoose.Schema(
       max: 10,
     },
   },
-  { _id: false }
+
+
+  { _id: false }// default mongodb object id ommited as this is a nested object schema 
 );
+
+
+
+
+
 
 const AttachmentMetadataSchema = new mongoose.Schema(
   {
@@ -84,8 +95,54 @@ const AttachmentMetadataSchema = new mongoose.Schema(
       default: "",
     },
   },
+
+  { _id: false }// default mongodb object id ommited as this is a nested object schema
+);
+
+
+
+
+
+
+
+//web_research key schemas
+
+
+const WebResearchSourceSchema = new mongoose.Schema(
+  {
+   
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
   { _id: false }
 );
+
+
+const WebResearchSchema = new mongoose.Schema(
+  {
+    content: {
+      type: String,
+      required: true,
+    },
+
+    sources: {
+      type: [WebResearchSourceSchema],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
+
+
 
 const AI_Counsel_Message_Schema = new mongoose.Schema(
   {
@@ -102,6 +159,8 @@ const AI_Counsel_Message_Schema = new mongoose.Schema(
       required: true,
     },
 
+
+    //unnecessary
     client_message_id: {
       type: String,
       required: false,
@@ -136,6 +195,14 @@ const AI_Counsel_Message_Schema = new mongoose.Schema(
       type: [DiscoveredLawSchema],
       default: [],
     },
+
+    web_research: {
+
+      type: WebResearchSchema,
+
+      default: null,
+
+    },
   },
   {
     timestamps: {
@@ -145,6 +212,11 @@ const AI_Counsel_Message_Schema = new mongoose.Schema(
   }
 );
 
+
+
+
+
+
 AI_Counsel_Message_Schema.index(
   { convo_id: 1, sender: 1, client_message_id: 1 },
   {
@@ -152,6 +224,10 @@ AI_Counsel_Message_Schema.index(
     sparse: true,
   }
 );
+
+
+
+
 
 export default mongoose.model(
   "AI_Counsel_Messages",
