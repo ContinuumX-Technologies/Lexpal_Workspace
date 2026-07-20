@@ -12,6 +12,7 @@ export default async function saveChatMessage({
     attachments = [],
     attachment_metadata = [],
     discovered_laws = [],
+    web_research
 }) {
     try {
         const safeAttachmentIds = Array.isArray(attachments)
@@ -110,6 +111,7 @@ export default async function saveChatMessage({
             attachments: safeAttachmentIds,
             attachment_metadata: safeAttachmentMetadata,
             discovered_laws: transformed_discovered_laws,
+            web_research
         });
         console.log(
             mongoose.connection.name,

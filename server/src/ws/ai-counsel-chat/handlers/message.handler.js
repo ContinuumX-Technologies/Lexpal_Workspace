@@ -4,6 +4,7 @@ import { generateAIResponse } from "../../../services/AI_Counsel_basic_chat/ai.s
 import generateConversationTitle from "../../../services/titleGenerator.service.js";
 import { runReasoning } from "../../../reasoning_pipeline/orchestrator.js";
 import resolveConversation from "../helper_funcs/convoResolver.service.js";
+import { performAIWebResearch } from "../../../services/llm_websearch.ts";
 
 const NEW_CONVERSATION_ID = "new";
 const titleGenerationLocks = new Map();
@@ -43,8 +44,8 @@ const normalizeAttachmentMetadata = (rawMetadata) => {
         file_name,
         size:
           typeof entry?.size === "number" &&
-          Number.isFinite(entry.size) &&
-          entry.size >= 0
+            Number.isFinite(entry.size) &&
+            entry.size >= 0
             ? entry.size
             : 0,
         mime_type:
@@ -134,14 +135,14 @@ const createConversationForSocket = async (socket) => {
 
 
 const resolveConversationForMessage = async ({ socket, requestedConvoId }) => {
-  
-  socket.convo_id=requestedConvoId;
 
-  if (socket.convo_id=== NEW_CONVERSATION_ID) {
-    
+  socket.convo_id = requestedConvoId;
+
+  if (socket.convo_id === NEW_CONVERSATION_ID) {
+
 
     const convo = await createConversationForSocket(socket);
-    socket.convo_id=convo._id.toString();
+    socket.convo_id = convo._id.toString();
     return {
       convo,
       convoId: convo._id.toString(),
@@ -154,7 +155,7 @@ const resolveConversationForMessage = async ({ socket, requestedConvoId }) => {
       userId: socket.user_id,
     });
 
-    
+
     socket.convo_title = getSocketConvoTitle(convo.title);
 
     return {
@@ -163,8 +164,8 @@ const resolveConversationForMessage = async ({ socket, requestedConvoId }) => {
     };
   }
 
-  
-  
+
+
 };
 
 
@@ -271,6 +272,7 @@ export async function handleMessage(socket, raw) {
   const clientMessageId =
     isNonEmptyString(payload.client_message_id) ? payload.client_message_id.trim() : null;
   const requestedConvoId = normalizeConvoId(payload.convo_id);
+  const webSearchRequired = payload.web_search;
 
   if (!userPrompt) {
     sendSocketMessage(socket, {
@@ -281,11 +283,11 @@ export async function handleMessage(socket, raw) {
     return;
   }
 
-  if(!requestedConvoId){
-    sendSocketMessage(socket,{
-      type:"error",
-      code:"EMPTY_CONVO_ID",
-      message:"convo_id is required"
+  if (!requestedConvoId) {
+    sendSocketMessage(socket, {
+      type: "error",
+      code: "EMPTY_CONVO_ID",
+      message: "convo_id is required"
     })
   }
 
@@ -304,9 +306,9 @@ export async function handleMessage(socket, raw) {
   try {
 
 
-   
 
-    
+
+
     const { convo, convoId } = await resolveConversationForMessage({
       socket,
       requestedConvoId,
@@ -343,17 +345,75 @@ export async function handleMessage(socket, raw) {
       });
     }
 
+
+    let finalPrompt = userPrompt;
+
+
+
+
+    // web search 
+    let webResearch;
+
+    console.log(webSearchRequired);
+
+    if (webSearchRequired) {
+      webResearch = await performAIWebResearch(userPrompt);
+
+      console.log(webResearch.content);
+
+      finalPrompt = `
+==================== WEB RESEARCH ====================
+
+The following information was gathered from the web by a dedicated web search agent in response to the user's query.
+
+INSTRUCTIONS:
+
+1. Treat the information below as supplemental evidence, not as authoritative truth.
+
+2. Compare every factual claim with your internal knowledge base.
+
+3. If your internal knowledge confirms a claim from the web research, present it confidently as part of your answer without mentioning the web research.
+
+4. If your internal knowledge does not contain enough information to verify a claim, you may still use the web research, but explicitly tell the user that "Web search found..." or "According to information gathered from the web...".
+
+5. If the web research contradicts your internal knowledge, explicitly mention both viewpoints. For example:
+
+   - "The web search indicates A."
+
+   - "However, my internal knowledge indicates B."
+
+   - "Because these sources disagree, please interpret this information with appropriate caution."
+
+6. Never silently merge conflicting information or present an unverified web claim as a confirmed fact.
+
+INFORMATION FROM THE WEB:
+
+${webResearch.content}
+
+================== END WEB RESEARCH ==================
+
+${userPrompt}
+`.trim();
+    }
+
+
+
     let aiResponse = {};
 
+
+
     if (chatMode === "basic_chat") {
-      const textContent = await generateAIResponse(userPrompt);
+      const textContent = await generateAIResponse(finalPrompt);
       aiResponse = {
         text_content: textContent,
         discovered_laws: [],
       };
     } else {
-      aiResponse = await runReasoning(userPrompt, reasoningMode);
+      aiResponse = await runReasoning(finalPrompt, reasoningMode);
     }
+
+
+
 
     const aiContent =
       typeof aiResponse.text_content === "string" ? aiResponse.text_content : "";
@@ -361,7 +421,10 @@ export async function handleMessage(socket, raw) {
       ? aiResponse.discovered_laws
       : [];
 
-      console.log(aiContent);
+    console.log(aiContent);
+
+
+
 
     const savedAiMessage = await saveChatMessage({
       convo_id: convoId,
@@ -369,11 +432,16 @@ export async function handleMessage(socket, raw) {
       content: aiContent,
       discovered_laws: discoveredLaws,
       client_message_id: crypto.randomUUID(),
+      web_research: webResearch? webResearch: null
     });
-    
+
+
+
     if (!savedAiMessage) {
       throw new Error("Failed to persist AI message");
     } else console.log(savedAiMessage);
+
+
 
     sendSocketMessage(socket, {
       type: "ai_message",
@@ -381,14 +449,23 @@ export async function handleMessage(socket, raw) {
       content: aiContent,
       discovered_laws: discoveredLaws,
       message_id: savedAiMessage._id?.toString?.() || null,
+      web_sources: webResearch?webResearch.sources:null
+      
     });
-  } catch(err) {
-     console.error(err);
+
+
+
+
+  } catch (err) {
+
+    console.error(err);
+
     sendSocketMessage(socket, {
       type: "error",
       code: "MESSAGE_PROCESSING_FAILED",
       message: "Unable to process message",
     });
+
   } finally {
     socket.is_processing = false;
   }

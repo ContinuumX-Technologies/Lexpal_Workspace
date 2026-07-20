@@ -12,6 +12,7 @@ import {
   type LawLookupResponse,
 } from "../api/lawSearch.api";
 import type { DiscoveredLaw as LawCardLaw } from "../components/LawCards";
+import { type WebResearchSource } from "../components/WebResearchSources";
 
 export const NEW_CONVERSATION_ID = "new" as const;
 const MONGO_OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
@@ -65,6 +66,7 @@ export type LawSearchChatMessage = {
   discovered_laws: LawCardLaw[];
   clientMessageId?: string | null;
   status?: MessageDeliveryStatus;
+  web_sources:null| WebResearchSource[]
 };
 
 
@@ -222,6 +224,7 @@ const toChatMessage = (msg: HistoricMessage): LawSearchChatMessage => {
       discovered_laws: Array.isArray(msg.discovered_laws) ? msg.discovered_laws.map(toLawCardLaw) : [],
       clientMessageId: msg.client_message_id,
       status: "sent",
+      web_sources:msg.web_research?msg.web_research.sources:null
     };
   }
 
@@ -237,6 +240,7 @@ const toChatMessage = (msg: HistoricMessage): LawSearchChatMessage => {
     discovered_laws: [],
     clientMessageId: msg.client_message_id,
     status: "sent",
+    web_sources:null
   };
 };
 

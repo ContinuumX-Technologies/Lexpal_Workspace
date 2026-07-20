@@ -22,11 +22,11 @@ export const performAIWebResearch = async (prompt: string): Promise<WebResearch>
         const response = await openaiClient.responses.create({
             store: false,
             model: "gpt-5-mini",
-            reasoning: { effort: "high" },
+            reasoning: { effort: "medium" },
             tools: [
                 {
                     type: "web_search_preview",
-                    search_context_size: "medium",
+                    search_context_size: "low",
                 }
             ],
 

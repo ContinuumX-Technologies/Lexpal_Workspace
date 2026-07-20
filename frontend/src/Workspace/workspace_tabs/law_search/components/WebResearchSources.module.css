@@ -1,0 +1,561 @@
+/* ==========================================================================
+   WebResearchSources · LexPal
+   A compact liquid-glass source-transparency module for AI chat messages.
+   Palette: black / gunmetal / dark silver · light-blue accents ·
+   sparse violet sheen · restrained amber hover highlights.
+   ========================================================================== */
+
+.root {
+  --wrs-text: rgba(233, 236, 243, 0.9);
+  --wrs-text-muted: rgba(203, 209, 220, 0.62);
+  --wrs-text-faint: rgba(203, 209, 220, 0.42);
+  --wrs-border: rgba(255, 255, 255, 0.09);
+  --wrs-border-strong: rgba(255, 255, 255, 0.18);
+  --wrs-blue: #8fb8ff;
+  --wrs-amber: #f2cf6b;
+  --wrs-ease: cubic-bezier(0.22, 0.61, 0.21, 1);
+
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 6px;
+  
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+   Expand / collapse shells — smooth height morph via grid-template-rows
+   -------------------------------------------------------------------------- */
+
+.wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-3px);
+  visibility: hidden;
+  transition:
+    grid-template-rows 300ms var(--wrs-ease),
+    opacity 180ms ease,
+    transform 300ms var(--wrs-ease),
+    visibility 0s linear 300ms;
+}
+
+.wrapOpen {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    grid-template-rows 300ms var(--wrs-ease),
+    opacity 200ms ease 60ms,
+    transform 300ms var(--wrs-ease),
+    visibility 0s;
+}
+
+/* The padding/negative-margin pair gives hover lifts and focus rings a few
+   pixels of breathing room inside the clipping container. */
+.clip {
+  min-height: 0;
+  overflow: hidden;
+  padding: 25px;
+  margin: -30px;
+}
+
+/* --------------------------------------------------------------------------
+   Collapsed trigger pill
+   -------------------------------------------------------------------------- */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--wrs-border);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.02) 55%,
+      rgba(255, 255, 255, 0.035)
+    ),
+    rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 6px 18px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 200ms var(--wrs-ease),
+    border-color 180ms ease,
+    box-shadow 200ms ease;
+}
+
+.trigger:hover {
+  transform: translateY(-1px);
+  border-color: var(--wrs-border-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 10px 26px rgba(0, 0, 0, 0.34);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid rgba(143, 184, 255, 0.7);
+  outline-offset: 2px;
+}
+
+/* ---------- favicon stack ---------- */
+
+.stack {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.stackItem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-left: -7px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #272b34, #171a20);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.stackItem:first-child {
+  margin-left: 0;
+}
+
+.stackIcon {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  color: var(--wrs-text-faint);
+}
+
+/* ---------- label & chevron ---------- */
+
+.triggerLabel {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--wrs-text-muted);
+  transition: color 160ms ease;
+}
+
+.triggerCount {
+  color: var(--wrs-text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.trigger:hover .triggerLabel {
+  color: var(--wrs-text);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  color: var(--wrs-text-faint);
+  transition:
+    transform 220ms var(--wrs-ease),
+    color 160ms ease;
+}
+
+.trigger:hover .chevron {
+  color: var(--wrs-amber);
+  transform: translateY(1px);
+}
+
+/* --------------------------------------------------------------------------
+   Expanded glass panel
+   -------------------------------------------------------------------------- */
+
+.panel {
+  position: relative;
+  isolation: isolate;
+  border-radius: 14px;
+  border: 1px solid var(--wrs-border);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.055),
+      rgba(255, 255, 255, 0.018) 42%,
+      rgba(255, 255, 255, 0.03)
+    ),
+    rgba(15, 17, 22, 0.58);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 8px 18px rgba(0, 0, 0, 0.38);
+  padding: 9px 10px 10px;
+}
+
+/* Faint blue/violet corner sheen — the "liquid" in the glass. */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background:
+    radial-gradient(130% 100% at 0% 0%, rgba(143, 184, 255, 0.055), transparent 52%),
+    radial-gradient(130% 100% at 100% 0%, rgba(190, 140, 255, 0.04), transparent 52%);
+  pointer-events: none;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 2px 9px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--wrs-text-faint);
+  user-select: none;
+}
+
+.eyebrowDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--wrs-blue);
+  box-shadow: 0 0 6px rgba(143, 184, 255, 0.9);
+}
+
+.countPill {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--wrs-blue);
+  background: rgba(143, 184, 255, 0.09);
+  border: 1px solid rgba(143, 184, 255, 0.2);
+  border-radius: 999px;
+  padding: 3px 7px;
+}
+
+.collapseBtn {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--wrs-text-faint);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 180ms var(--wrs-ease);
+}
+
+.collapseBtn:hover {
+  color: var(--wrs-amber);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--wrs-border);
+  transform: translateY(-1px);
+}
+
+.collapseBtn:focus-visible {
+  outline: 2px solid rgba(143, 184, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.collapseIcon {
+  width: 12px;
+  height: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Horizontally scrollable source cards
+   -------------------------------------------------------------------------- */
+
+.scroller {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 2px 6px;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-padding-inline: 2px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.cardItem {
+  display: flex;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------- card ---------- */
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 198px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  border: 1px solid var(--wrs-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 200ms var(--wrs-ease),
+    border-color 170ms ease,
+    box-shadow 200ms ease;
+}
+
+/* Keep content above the ::before sheen layer. */
+.card > * {
+  position: relative;
+}
+
+/* Hover sheen — fades in rather than swapping backgrounds abruptly. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.075),
+    rgba(255, 255, 255, 0.02)
+  );
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+/* Restrained amber hairline that ignites along the top edge on hover. */
+.card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(242, 207, 107, 0.55),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  border-color: var(--wrs-border-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 22px rgba(0, 0, 0, 0.32);
+}
+
+.card:hover::before,
+.card:hover::after {
+  opacity: 1;
+}
+
+.card:focus-visible {
+  outline: 2px solid rgba(143, 184, 255, 0.7);
+  outline-offset: 1px;
+}
+
+/* Static (invalid-URL) variant — presentational only, no hover affordance. */
+.cardStatic {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.cardStatic:hover {
+  transform: none;
+  border-color: var(--wrs-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.cardStatic::before,
+.cardStatic::after {
+  display: none;
+}
+
+/* ---------- card internals ---------- */
+
+.cardIcon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.04)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.cardFavicon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  color: var(--wrs-text-faint);
+}
+
+.cardText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-right: 14px; /* clears the external-link glyph */
+}
+
+.cardTitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--wrs-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 160ms ease;
+}
+
+.card:hover .cardTitle {
+  color: #ffffff;
+}
+
+.cardHost {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: var(--wrs-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arrow {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 11px;
+  height: 11px;
+  color: var(--wrs-text-faint);
+  opacity: 0.45;
+  transition:
+    opacity 170ms ease,
+    color 170ms ease,
+    transform 200ms var(--wrs-ease);
+}
+
+.card:hover .arrow {
+  opacity: 1;
+  color: var(--wrs-amber);
+  transform: translate(1px, -1px);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 520px) {
+  .panel {
+    padding: 8px 8px 9px;
+  }
+
+  .card {
+    width: 176px;
+    padding: 8px 11px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Fallbacks & motion preferences
+   -------------------------------------------------------------------------- */
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .trigger {
+    background: rgba(20, 22, 28, 0.94);
+  }
+
+  .panel {
+    background: rgba(18, 20, 26, 0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap,
+  .trigger,
+  .triggerLabel,
+  .chevron,
+  .collapseBtn,
+  .card,
+  .card::before,
+  .card::after,
+  .cardTitle,
+  .arrow {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+  }
+
+  .trigger:hover,
+  .collapseBtn:hover,
+  .card:hover {
+    transform: none;
+  }
+}

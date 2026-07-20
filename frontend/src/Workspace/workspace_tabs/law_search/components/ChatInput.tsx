@@ -7,17 +7,27 @@ import {
     useLawSearchAttachments,
 } from "../context/attachments.context";
 
+
+
+
+
 interface ChatInputProps {
-    onSendMessage: (
-        message: string
-    ) => Promise<boolean>;
+    onSendMessage: (message: string) => Promise<boolean>;
     onStop: () => void;
     isProcessing: boolean;
     disabled?: boolean;
+
     placeholder?: string;
+
     chatMode: "basic_chat" | "reasoning_chat";
     onToggleChatMode: () => void;
+
+    webSearch: boolean;
+    onToggleWebSearch: () => void;
 }
+
+
+
 
 export default function ChatInput({
     onSendMessage,
@@ -27,6 +37,9 @@ export default function ChatInput({
     placeholder,
     chatMode,
     onToggleChatMode,
+
+    webSearch,
+    onToggleWebSearch
 }: ChatInputProps) {
     const [input, setInput] = useState("");
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -52,7 +65,7 @@ export default function ChatInput({
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setInput(e.target.value);
-        
+
         const textarea = textareaRef.current;
         if (textarea) {
             textarea.style.height = 'auto';
@@ -109,15 +122,14 @@ export default function ChatInput({
                                     </span>
 
                                     <span
-                                        className={`${styles.chipInfo} ${
-                                            ctx.parse_status === "error" ? styles.chipError : ""
-                                        }`}
+                                        className={`${styles.chipInfo} ${ctx.parse_status === "error" ? styles.chipError : ""
+                                            }`}
                                     >
                                         {ctx.parse_status === "error"
                                             ? "Parse failed"
                                             : ctx.parse_status === "parsing"
-                                            ? "Parsing..."
-                                            : formatFileSize(ctx.size)}
+                                                ? "Parsing..."
+                                                : formatFileSize(ctx.size)}
                                     </span>
 
                                     <button
@@ -163,20 +175,20 @@ export default function ChatInput({
                             </button>
 
                             <button
-                                className={styles.iconBtn}
+                                className={`${styles.iconBtn} ${webSearch ? styles.iconBtnActive : ""
+                                    }`}
                                 title="Search the Web"
                                 disabled={isProcessing}
+                                onClick={onToggleWebSearch}
                             >
-                                {/* Subtle and classy web search icon */}
                                 <span className="material-symbols-outlined">language</span>
                             </button>
                         </div>
 
                         <div className={styles.rightActions}>
                             <button
-                                className={`${styles.reasoningBtn} ${
-                                    reasoningMode ? styles.reasoningActive : ""
-                                }`}
+                                className={`${styles.reasoningBtn} ${reasoningMode ? styles.reasoningActive : ""
+                                    }`}
                                 onClick={onToggleChatMode}
                                 title={reasoningMode ? "Reasoning on — click to disable" : "Enable reasoning mode"}
                                 disabled={isProcessing}

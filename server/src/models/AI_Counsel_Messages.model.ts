@@ -113,7 +113,7 @@ const WebResearchSourceSchema = new mongoose.Schema(
    
     title: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
     url: {

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import AI_Counsel_Convo from "../models/AI_Counsel_Convo.model";
 import AI_Counsel_Message from "../models/AI_Counsel_Messages.model";
 import { getOrCreateChromaCollection } from "../infra/chroma.client";
+import type { WebResearch } from "./llm_websearch";
 
 const LAW_COLLECTION_NAME = "Indian_Law_Acts";
 
@@ -42,6 +43,7 @@ interface DbMessage {
   attachment_metadata?: DbAttachmentMetadata[];
   discovered_laws?: DbDiscoveredLaw[];
   client_message_id?: unknown;
+  web_research:null|WebResearch
 }
 
 export interface AttachmentMetadata {
@@ -73,6 +75,7 @@ export interface HistoryMessageItem {
   attachment_metadata: AttachmentMetadata[];
   discovered_laws: DiscoveredLawItem[];
   client_message_id: string | null;
+  web_research: null|WebResearch
 }
 
 export interface ConversationListItem {
@@ -349,6 +352,7 @@ export const getOwnedConversationMessages = async (
       ),
       discovered_laws: normalizeDiscoveredLaws(item.discovered_laws),
       client_message_id: toSafeNullableString(item.client_message_id),
+      web_research: item.web_research
     } satisfies HistoryMessageItem;
   });
 };

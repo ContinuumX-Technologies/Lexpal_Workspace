@@ -1,3 +1,5 @@
+import type { WebResearchSource } from "../components/WebResearchSources";
+
 export type ConversationListItem = {
   id: string;
   title: string;
@@ -22,6 +24,13 @@ export type DiscoveredLaw = {
   relevance_score: number;
 };
 
+
+type WebResearch={
+  content:string,
+  sources: WebResearchSource[]
+}
+
+
 export type HistoricMessage = {
   id: string;
   convo_id: string;
@@ -32,6 +41,7 @@ export type HistoricMessage = {
   attachment_metadata: AttachmentMetadata[];
   discovered_laws: DiscoveredLaw[];
   client_message_id: string | null;
+  web_research: null|WebResearch
 };
 
 export type LawLookupResponse = {

@@ -22,7 +22,9 @@ import {
   Zap,
   BrainCog,
 } from "lucide-react";
-import {ws_url_base} from "@/config";
+import { ws_url_base } from "@/config";
+import WebResearchSources from "./components/WebResearchSources";
+import { type WebResearchSource } from "./components/WebResearchSources";
 
 
 
@@ -40,6 +42,8 @@ const toLawCardLaw = (law: DiscoveredLaw): LawCardLaw => ({
 
 
 
+
+
 type InboundSocketPayload = {
   type?: string;
   content?: string;
@@ -50,6 +54,8 @@ type InboundSocketPayload = {
   role?: "User" | "AI";
   client_message_id?: string | null;
   message?: string;
+
+  web_sources: null | WebResearchSource[]
 };
 
 
@@ -64,8 +70,8 @@ const composeSocketContent = (prompt: string, context: OutboundContextObject) =>
   const attachmentLabel =
     context.attachments.length > 0
       ? context.attachments
-          .map((file) => `Attached File --> file${file.index}: ${file.file_name}\n${file.text_content}`)
-          .join("\n\n")
+        .map((file) => `Attached File --> file${file.index}: ${file.file_name}\n${file.text_content}`)
+        .join("\n\n")
       : "No attached files.";
 
   return [
@@ -89,7 +95,7 @@ const composeSocketContent = (prompt: string, context: OutboundContextObject) =>
 
 
 const MainChatSection = () => {
-  
+
 
   const {
     toggleSidebar,
@@ -117,7 +123,7 @@ const MainChatSection = () => {
   const [, setActiveMoreMenuIndex] = useState<number | null>(null);
   const [chatMode, setChatMode] = useState<"basic_chat" | "reasoning_chat">("basic_chat");
   const [reasoningMode, setReasoningMode] = useState<"lite" | "deep">("lite");
-  // const [webSearch, setWebSearch]= useState<boolean>(false);
+  const [webSearch, setWebSearch] = useState<boolean>(false);
   const [fallbackAttachmentMap, setFallbackAttachmentMap] = useState<Record<string, AttachmentMetadata>>({});
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -126,10 +132,19 @@ const MainChatSection = () => {
   const seenAiMessageIdsRef = useRef<Set<string>>(new Set());
   const activeConvoIdRef = useRef(activeConvoId);
 
+
+
   const { buildPayload, clearSelectedAttachments } = useLawSearchAttachments();
+
+
+
 
   const toggleChatMode = () => {
     setChatMode((prev) => (prev === "basic_chat" ? "reasoning_chat" : "basic_chat"));
+  };
+
+  const toggleWebSearch = () => {
+    setWebSearch((prev) => !prev);
   };
 
 
@@ -225,8 +240,8 @@ const MainChatSection = () => {
         socketRef.current = null;
       }
 
-      
-     
+
+
       const wsUrl = `${ws_url_base}/ws/ai-counsel-chat`;
       const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
@@ -253,10 +268,10 @@ const MainChatSection = () => {
 
           if (payload.type === "convo_created" && payload.convo_id) {
             commitConversation(payload.convo_id);
-           
+
             return;
           }
-        
+
 
           if (payload.type === "convo_title_updated") {
             void refreshConversations();
@@ -270,7 +285,7 @@ const MainChatSection = () => {
             if (ackClientMessageId) {
               markMessageSent(ackClientMessageId);
             }
-            
+
             return;
           }
 
@@ -295,11 +310,13 @@ const MainChatSection = () => {
               attachmentIds: [],
               attachmentMetadata: [],
               status: "sent",
+              web_sources: payload.web_sources
             });
-             
+
             setIsProcessing(false);
             return;
           }
+
 
           if (payload.type === "error") {
             setConnectionError(payload.message || "Connection error");
@@ -359,7 +376,7 @@ const MainChatSection = () => {
         socketRef.current = null;
       }
     };
-  }, [ socketVersion, refreshConversations, appendMessage, markMessageSent]);
+  }, [socketVersion, refreshConversations, appendMessage, markMessageSent]);
 
 
 
@@ -391,6 +408,7 @@ const MainChatSection = () => {
         attachment_metadata: payload.attachmentMetadata,
         client_message_id: payload.clientMessageId,
         convo_id: activeConvoId,
+        web_search: webSearch,
         chat_mode: chatMode,
         ...(chatMode === "reasoning_chat" ? { reasoning_mode: reasoningMode } : {}),
       })
@@ -439,6 +457,7 @@ const MainChatSection = () => {
       discovered_laws: [],
       clientMessageId,
       status: "sending",
+      web_sources: null
     };
 
     setConnectionError(null);
@@ -462,6 +481,9 @@ const MainChatSection = () => {
     clearSelectedAttachments();
     return true;
   };
+
+
+
 
   const handleRegenerate = async () => {
     if (isProcessing || messages.length === 0) {
@@ -577,6 +599,9 @@ const MainChatSection = () => {
 
 
 
+
+
+
   return (
     <main className={styles.main}>
       {showShareToast && <div className={styles.toast}>Link copied to clipboard</div>}
@@ -608,7 +633,15 @@ const MainChatSection = () => {
                 className={msg.sender === "User" ? styles.userMessageWrapper : styles.aiMessage}
               >
                 {msg.sender === "AI" ? (
+
                   <div className={styles.markdownContent}>
+                    {msg.web_sources &&
+                      <WebResearchSources
+
+                        sources={msg.web_sources}
+
+                      />
+                    }
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
 
                     {msg.discovered_laws.length > 0 && <LawCards laws={msg.discovered_laws} />}
@@ -680,9 +713,8 @@ const MainChatSection = () => {
           {chatMode === "reasoning_chat" && (
             <div className={styles.reasoningModeBar}>
               <button
-                className={`${styles.reasoningModeBtn} ${
-                  reasoningMode === "lite" ? styles.reasoningModeBtnActive : ""
-                }`}
+                className={`${styles.reasoningModeBtn} ${reasoningMode === "lite" ? styles.reasoningModeBtnActive : ""
+                  }`}
                 onClick={() => setReasoningMode("lite")}
                 title="Lite — faster, efficient reasoning"
               >
@@ -690,9 +722,8 @@ const MainChatSection = () => {
                 Lite
               </button>
               <button
-                className={`${styles.reasoningModeBtn} ${
-                  reasoningMode === "deep" ? styles.reasoningModeBtnActive : ""
-                }`}
+                className={`${styles.reasoningModeBtn} ${reasoningMode === "deep" ? styles.reasoningModeBtnActive : ""
+                  }`}
                 onClick={() => setReasoningMode("deep")}
                 title="Deep — thorough, multi-step reasoning"
               >
@@ -709,6 +740,9 @@ const MainChatSection = () => {
             disabled={!socketReady && !isProcessing}
             chatMode={chatMode}
             onToggleChatMode={toggleChatMode}
+
+            webSearch={webSearch}
+            onToggleWebSearch={toggleWebSearch}
           />
         </div>
       </section>

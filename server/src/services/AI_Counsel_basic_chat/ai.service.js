@@ -10,6 +10,8 @@ import {
 
 import { getOrCreateChromaCollection } from "../../infra/chroma.client.ts";
 
+
+
 export async function generateAIResponse(userQuery) {
 
   const route = await decideQueryRoute(userQuery);
@@ -72,7 +74,7 @@ export async function generateAIResponse(userQuery) {
         distance: results.distances?.[0]?.[index],
       })) || [];
 
-    return generateExactLawResponse(metadata, chunks);
+    return generateExactLawResponse(userQuery, metadata, chunks);
   }
 
   // CHAT QUERY
